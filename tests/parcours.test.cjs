@@ -82,10 +82,17 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   assert.ok((await modou.textContent("#view")).includes("pas encore administrateur") && !(await modou.$(".stats")));
   step("client sur #admin : « pas encore administrateur » et son identifiant avec « Copier »");
 
-  // 5. admin
+  // le bouton « Espace admin » du haut n'est pas visible pour un client ; le lien discret « Espace propriétaire » est en bas de l'accueil
+  assert.strictEqual(await awa.isVisible("#adminbtn"), false);
+  assert.ok(await awa.$('#view .foot a[href="#admin"]'));
+
+  // 5. admin : par le lien discret de l'écran de connexion, puis ouverture directe de l'espace admin
   const ad = await page();
+  await ad.goto(URL); await ad.waitForSelector("#email");
+  await ad.$eval('.foot a[href="#admin"]', (a) => a.click()); await ad.waitForFunction(() => location.hash === "#admin");
   await login(ad, "admin@exemple.sn", "secret123", "#admin");
   await ad.waitForSelector(".stats.four");
+  assert.strictEqual(await ad.isVisible("#adminbtn"), true);
   const kpi = async () => ad.$$eval(".stats b", (b) => b.map((x) => x.textContent));
   assert.deepStrictEqual(await kpi(), ["2", "1", "0", "5"]);
   let txt = await ad.textContent("#view");
@@ -147,6 +154,9 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   await ad.click('#rolebar [data-role="employe"]');
   assert.strictEqual(await ad.evaluate(() => me().name), "Modou");
   if (shots) await ad.screenshot({ path: shots + "/4-presentation.png", fullPage: true });
+  await ad.click("#adminbtn"); await ad.waitForSelector(".stats.four"); assert.strictEqual(await ad.isVisible("#rolebar"), false);
+  step("admin : le bouton « Espace admin » du haut ramène à l'espace admin");
+  await ad.click("#ad-demo"); await ad.waitForSelector(".cash .amount");
   await ad.click('#rolebar [data-role="fin"]'); await ad.waitForSelector(".stats.four");
   step("admin : mode présentation, passage patron → employé, retour à l'espace admin");
 
@@ -155,7 +165,7 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   await ad.click('#ad-inv button[type=submit]'); await ad.waitForSelector("#inv-qr svg.qr");
   const link = await ad.textContent("#inv-url");
   assert.ok(/#invite\/[a-z0-9]{15}$/.test(link), "lien d'invitation");
-  assert.ok(await ad.$('#ad-inv-show a[href^="https://wa.me/221781112233"]'), "envoi par WhatsApp");
+  assert.ok(await ad.$('#inv-wa[href^="https://wa.me/221781112233"]') && await ad.$("#inv-copy"), "boutons Copier et WhatsApp");
   assert.ok((await ad.textContent("#ad-inv-list")).includes("Kiosque Liberté"));
   if (shots) await ad.screenshot({ path: shots + "/5-invitation.png", fullPage: true });
   const fatou = await page();
@@ -175,6 +185,10 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   await ad.click("#reload"); await ad.waitForSelector(".stats.four");
   assert.ok((await ad.textContent("#ad-list")).includes("Kiosque Liberté") && !(await ad.textContent("#ad-inv-list")).includes("Kiosque Liberté"));
   step("invitation : déjà servie pour un deuxième compte ; le kiosque invité apparaît chez l'admin");
+
+  // l'admin rouvre l'appli : l'espace admin s'ouvre directement
+  await ad.goto(URL); await ad.waitForSelector(".stats.four");
+  step("admin : à l'ouverture de l'appli, l'espace admin s'ouvre directement");
 
   // 10. le client change de téléphone : il se connecte et retrouve son cahier
   const awa2 = await page();

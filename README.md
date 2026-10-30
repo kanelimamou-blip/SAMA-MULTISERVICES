@@ -30,13 +30,13 @@ Pas de paiement dans l'appli et aucun blocage automatique : le propriétaire enc
 
 Quand `FIREBASE_CONFIG` est rempli, chaque client crée un compte (e-mail ou Google) à la première ouverture ; ensuite l'appli marche aussi sans connexion. Un compte = un kiosque : fiche `kiosques/{uid}` (nom, quartier, téléphone, inscription, dernière activité, `blocked`) et copie du cahier dans `kiosques/{uid}/cahier` (un document `base` et un par jour). Sur un nouveau téléphone, le client se connecte et retrouve son cahier. Les codes à 4 chiffres ne partent pas en ligne.
 
-Page `#admin` :
+Page `#admin` (lien discret « Espace propriétaire » en bas de l'accueil et de l'écran de connexion ; bouton « Espace admin » en haut, visible par l'admin seul ; ouverture directe quand l'admin se connecte) :
 - pas connecté : connexion Google ou e-mail ; connecté mais pas admin : l'UID du compte, avec « Copier » ;
 - chiffres : inscrits, actifs cette semaine, inactifs, erreurs des 7 derniers jours ;
 - clients : nom, quartier, téléphone, inscription, opérations des 7 derniers jours, état (Actif, Nouveau, Inactif, Suspendu), recherche et filtres ;
 - par client : Suspendre/Réactiver, WhatsApp, « Voir » (l'appli comme le client la voit, en patron ou en employé, en lecture seule) ;
 - erreurs (`erreurs`) : plantages et écritures refusées, au plus 5 par visite, avec message, écran, client, rôle et téléphone ; l'admin les efface ;
-- inviter un nouveau propriétaire : l'admin prépare le kiosque (nom, quartier, téléphone) et obtient un lien `#invite/CODE` et son QR code (copier, WhatsApp, partager). Le propriétaire s'inscrit par ce lien et trouve son kiosque déjà nommé ; l'invitation ne sert qu'une fois (vérifié par les règles) ;
+- « Nouveau client » : l'admin prépare le kiosque (nom, quartier, téléphone) et obtient un lien `#invite/CODE` et son QR code (Partager, Copier, WhatsApp). Le propriétaire s'inscrit par ce lien et trouve son kiosque déjà nommé ; l'invitation ne sert qu'une fois (vérifié par les règles) ;
 - mode présentation : données d'exemple et barre du haut pour passer de patron à employé.
 
 Les règles Firestore font la sécurité : seul l'admin lit la liste, les cahiers et les erreurs ; il ne peut modifier que `blocked`. Un kiosque suspendu voit « suspendu, contacte l'équipe au 78 272 19 20 » et les règles refusent toutes ses écritures, même en contournant l'appli ; il ne peut pas se réactiver.

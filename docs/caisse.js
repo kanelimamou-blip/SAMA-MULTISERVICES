@@ -92,7 +92,11 @@ function viewHome() {
     ${!d.close ? `<div class="two">${S.users.length > 1 ? `<a class="btn alt" href="#releve">${t("Passer la caisse")}</a>` : ""}<a class="btn alt" href="#cloture">${t("Clôturer la caisse")}</a></div>` : ""}`;
   wireDemo();
 }
-function wireDemo() { const q = document.getElementById("quitdemo"); if (q) q.onclick = () => exitDemo(); }
+function wireDemo() {
+  const q = document.getElementById("quitdemo"); if (q) q.onclick = () => exitDemo();
+  // lien discret vers l'espace admin, en bas de l'accueil
+  if (Compte.enabled && !VOIR && !demoOn()) $view.insertAdjacentHTML("beforeend", `<p class="foot"><a href="#admin">${t("Espace propriétaire")}</a></p>`);
+}
 
 // Description d'une ligne du cahier, pour le journal, les rapports et l'export
 function describe(o) {

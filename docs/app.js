@@ -2,7 +2,11 @@
 // app.js : navigation entre les écrans et démarrage.
 
 function go(h) { if (location.hash === "#" + h) render(); else location.hash = h; }
-function paintTop() { document.getElementById("kname").textContent = S.kiosk || CFG.name; }
+function paintTop() {
+  document.getElementById("kname").textContent = S.kiosk || CFG.name;
+  // bouton visible par l'admin seul
+  document.getElementById("adminbtn").hidden = !(Compte.enabled && Compte.isAdmin());
+}
 const ROUTES = {
   accueil: () => viewHome(), saisie: (a) => viewEntry(a), corriger: (a) => (isBoss() ? viewEntry(null, a) : go("journal")), autre: (a) => viewOther(a),
   journal: (a) => viewJournal(a), ouverture: () => viewOpen(), cloture: () => viewClose(), releve: () => viewHandover(),
@@ -21,6 +25,8 @@ function render() {
   if (gate === "login") return viewLogin();
   if (gate === "suspended") return viewSuspended();
   const [page, ...rest] = location.hash.slice(1).split("/"), arg = rest.join("/");
+  // « Espace admin » pendant une présentation ou un « Voir » : on en sort d'abord
+  if (page === "admin" && Compte.isAdmin() && (VOIR || demoOn())) return VOIR ? closeVoir() : exitDemo();
   if (page === "admin" || (gate === "admin" && !demoOn() && !VOIR)) return viewAdmin();
   document.body.classList.remove("admin");
   if (VOIR && (!S.operators || !S.operators.length)) { document.body.classList.add("bare"); $view.innerHTML = `<div class="card"><p>${t("Ce client n'a pas encore réglé son cahier.")}</p></div>`; return; }

@@ -241,3 +241,8 @@ body.admin main{max-width:880px}
 .qr-box{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:12px 0}
 .qr-box .qr{max-width:100%;height:auto;border-radius:8px}
 .qr-box .copy{overflow-wrap:anywhere}
+.foot{text-align:center;margin-top:28px;font-size:.8rem}
+.foot a{color:var(--muted)}
+.inv-btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px}
+.inv-btns .btn{margin:0;text-align:center}
+#adminbtn{text-decoration:none}

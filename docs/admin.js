@@ -33,7 +33,8 @@ function viewLogin(mode = location.hash === "#admin" ? "login" : "create", msg =
       <button class="btn" type="submit">${create ? t("Créer mon compte") : t("Me connecter")}</button>
       ${!create ? `<button class="link" type="button" id="reset">${t("Mot de passe oublié ?")}</button>` : ""}
     </form>
-    <button class="btn alt" id="google">${t("Continuer avec Google")}</button>`;
+    <button class="btn alt" id="google">${t("Continuer avec Google")}</button>
+    <p class="foot"><a href="#admin">${t("Espace propriétaire")}</a></p>`;
   $view.insertAdjacentHTML("afterbegin", `<div id="invite-note"></div>`);
   Compte.readInvite().then((inv) => {
     const el = document.getElementById("invite-note"); if (!el || !inv) return;
@@ -137,7 +138,7 @@ async function viewAdmin() {
     </div>
     <div class="card"><h2>${t("Mode présentation")}</h2><p class="small muted">${t("Montre l'appli sur ton seul téléphone, avec des données d'exemple : tu passes de patron à employé avec la barre en haut de l'écran.")}</p>
       <button class="btn alt" id="ad-demo">${t("Présenter l'appli")}</button></div>
-    <div class="card"><h2>${t("Inviter un nouveau propriétaire")}</h2>
+    <div class="card"><h2>${t("Nouveau client")}</h2>
       <p class="small muted">${t("Prépare son kiosque, puis envoie-lui le lien ou fais-lui scanner le QR code : il crée son compte et retrouve son kiosque déjà nommé.")}</p>
       <form id="ad-inv">${textInput("inv-name", "", t("Nom du kiosque"), 'maxlength="60" required')}
         <div class="two">${textInput("inv-q", "", t("Quartier"), 'maxlength="60"')}${textInput("inv-tel", "", t("Téléphone"), 'inputmode="tel" maxlength="20"')}</div>
@@ -177,9 +178,9 @@ async function viewAdmin() {
     const url = invUrl(inv.id);
     document.getElementById("ad-inv-show").innerHTML = `<div class="qr-box" id="inv-qr"><b>${esc(inv.name)}</b>${qrSvg(url, 220)}
       <span class="small">${t("Scanne pour ouvrir ton kiosque {app}", { app: esc(CFG.name) })}</span><span class="small copy" id="inv-url">${esc(url)}</span></div>
-      <div class="two"><button class="btn alt" type="button" id="inv-copy">${t("Copier le lien")}</button>
-      ${inv.tel ? `<a class="btn" target="_blank" rel="noopener" href="${waLink(inv.tel, t("Bonjour, voici ton invitation pour {k} sur {app} : {u}", { k: inv.name, app: CFG.name, u: url }))}">${t("Envoyer par WhatsApp")}</a>`
-        : navigator.share ? `<button class="btn" type="button" id="inv-share">${t("Partager")}</button>` : ""}</div>`;
+      <div class="inv-btns">${navigator.share ? `<button class="btn alt" type="button" id="inv-share">${t("Partager")}</button>` : ""}
+        <button class="btn alt" type="button" id="inv-copy">${t("Copier")}</button>
+        <a class="btn" id="inv-wa" target="_blank" rel="noopener" href="${waLink(inv.tel, t("Bonjour, voici ton invitation pour {k} sur {app} : {u}", { k: inv.name, app: CFG.name, u: url }))}">WhatsApp</a></div>`;
     document.getElementById("inv-copy").onclick = () => copyText(url);
     const sh = document.getElementById("inv-share"); if (sh) sh.onclick = () => navigator.share({ title: CFG.name, text: inv.name, url }).catch(() => {});
     document.getElementById("ad-inv-show").scrollIntoView({ behavior: "smooth", block: "center" });
