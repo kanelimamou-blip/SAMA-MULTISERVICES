@@ -246,3 +246,14 @@ body.admin main{max-width:880px}
 .inv-btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px}
 .inv-btns .btn{margin:0;text-align:center}
 #adminbtn{text-decoration:none}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0}
+.kpis div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:2px}
+.kpis b{font-size:2rem;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--ink)}
+.kpis span{color:var(--muted);font-size:.9rem}
+.big-line{display:block;width:100%;margin:10px 0;padding:16px;border:0;border-radius:14px;background:var(--surface-2);color:var(--ink);font:inherit;font-weight:700;font-size:1.05rem;cursor:pointer}
+.big-line[aria-expanded="true"]{background:var(--accent);color:var(--accent-ink)}
+.tabs2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 10px}
+.tabs2 button{padding:14px;border:0;border-radius:14px;background:var(--surface-2);color:var(--ink);font:inherit;font-weight:700;font-size:1.05rem;cursor:pointer}
+.tabs2 button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.btn-ghost.icon{font-size:1.2rem;padding:8px 14px;border:1.5px solid var(--line);border-radius:12px}
+[hidden]{display:none!important}

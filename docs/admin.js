@@ -129,31 +129,43 @@ async function viewAdmin() {
   const st = (k) => kState(k, act[k.id])[0], count = (s) => rows.filter((k) => st(k) === s).length;
   const names = Object.fromEntries(rows.map((k) => [k.id, k.name || "?"]));
   let q = viewAdmin.q || "", filter = viewAdmin.filter || "tous";
-  $view.innerHTML = `<div class="row"><h1>${t("Espace admin")}</h1><button class="chip" id="reload">${t("Actualiser")}</button></div>
-    <div class="stats four">
-      <div><span>${t("Inscrits")}</span><b>${rows.length}</b></div>
-      <div><span>${t("Actifs cette semaine")}</span><b>${count("Actif")}</b></div>
-      <div><span>${t("Inactifs")}</span><b>${count("Inactif")}</b></div>
-      <div><span>${t("Erreurs (7 jours)")}</span><b>${errs.length}</b></div>
+  let tab = viewAdmin.tab || "kiosques";
+  $view.innerHTML = `<div class="row"><h1>${t("Espace admin")}</h1><button class="btn-ghost icon" id="reload" aria-label="${t("Actualiser")}">↻</button></div>
+    <p class="muted">${t("Visible seulement par toi. Les patrons, les employés et leurs clients ne voient rien de cet espace.")}</p>
+    <div class="kpis">
+      <div><b>${rows.length}</b><span>${t("kiosque(s) inscrit(s)")}</span></div>
+      <div><b>${count("Actif")}</b><span>${t("actifs cette semaine")}</span></div>
+      <div><b>${count("Inactif")}</b><span>${t("inactifs (plus de 7 jours)")}</span></div>
+      <div><b id="kpi-err">${errs.length}</b><span>${t("erreurs sur 7 jours")}</span></div>
     </div>
-    <div class="card"><h2>${t("Mode présentation")}</h2><p class="small muted">${t("Montre l'appli sur ton seul téléphone, avec des données d'exemple : tu passes de patron à employé avec la barre en haut de l'écran.")}</p>
-      <button class="btn alt" id="ad-demo">${t("Présenter l'appli")}</button></div>
-    <div class="card"><h2>${t("Nouveau client")}</h2>
-      <p class="small muted">${t("Prépare son kiosque, puis envoie-lui le lien ou fais-lui scanner le QR code : il crée son compte et retrouve son kiosque déjà nommé.")}</p>
+    <button class="big-line" id="ad-demo">🎬 ${t("Mode présentation (passer d'un rôle à l'autre)")}</button>
+    <button class="big-line" id="ad-inv-open" aria-expanded="false">📲 ${t("Inviter un nouveau patron (lien ou QR code)")}</button>
+    <div class="card" id="ad-inv-box" hidden>
+      <p class="small muted">${t("Remplis ce que tu sais : l'appli crée un lien et un QR code. Le nouveau patron crée son compte et retrouve son kiosque déjà rempli.")}</p>
       <form id="ad-inv">${textInput("inv-name", "", t("Nom du kiosque"), 'maxlength="60" required')}
         <div class="two">${textInput("inv-q", "", t("Quartier"), 'maxlength="60"')}${textInput("inv-tel", "", t("Téléphone"), 'inputmode="tel" maxlength="20"')}</div>
-        <button class="btn" type="submit">${t("Créer l'invitation")}</button></form>
+        <button class="btn" type="submit">${t("Créer le lien et le QR code")}</button></form>
       <div id="ad-inv-show"></div><div id="ad-inv-list"></div></div>
     <div id="confirm"></div>
-    <div class="card"><h2>${t("Clients")}</h2>
+    <div class="tabs2"><button type="button" data-tab="kiosques" id="tab-k"></button><button type="button" data-tab="erreurs" id="tab-e"></button></div>
+    <div class="card" id="pane-kiosques">
       <input id="ad-q" class="field-in" placeholder="${t("Chercher un nom, un quartier, un téléphone")}" autocomplete="off" value="${esc(q)}">
       <div class="chips" id="ad-f">${FILTERS.map(([f, l]) => `<button type="button" class="chip" data-f="${f}">${t(l)}</button>`).join("")}</div>
       <div id="ad-list"></div>
-      <p class="small muted">${t("Activité = opérations notées ces 7 derniers jours. « Voir » ouvre l'appli comme ce client la voit, en lecture seule : tu peux tout regarder, rien modifier.")}</p></div>
-    <div class="card"><h2>${t("Erreurs des 7 derniers jours")}</h2><div id="ad-err"></div></div>
+      <p class="small muted">${t("Activité = opérations notées ces 7 derniers jours. « Voir » ouvre l'appli comme ce patron la voit, en lecture seule : tu peux tout regarder, rien modifier.")}</p></div>
+    <div class="card" id="pane-erreurs"><div id="ad-err"></div></div>
     <p class="small muted">${t("Connecté en tant qu'admin")} : ${esc(Compte.user.email || Compte.user.uid)}</p>
     <button class="btn alt" id="out">${t("Me déconnecter")}</button>`;
+  const inv = document.getElementById("ad-inv-open");
+  inv.onclick = () => { const box = document.getElementById("ad-inv-box"); box.hidden = !box.hidden; inv.setAttribute("aria-expanded", !box.hidden); if (!box.hidden) document.getElementById("inv-name").focus(); };
+  $view.querySelector(".tabs2").onclick = (e) => { const b = e.target.closest("[data-tab]"); if (b) { tab = viewAdmin.tab = b.dataset.tab; paint(); } };
   function paint() {
+    document.getElementById("tab-k").textContent = t("Kiosques ({n})", { n: rows.length });
+    document.getElementById("tab-e").textContent = t("Erreurs ({n})", { n: errs.length });
+    document.getElementById("kpi-err").textContent = errs.length;
+    $view.querySelectorAll(".tabs2 [data-tab]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.tab === tab));
+    document.getElementById("pane-kiosques").hidden = tab !== "kiosques";
+    document.getElementById("pane-erreurs").hidden = tab !== "erreurs";
     $view.querySelectorAll("#ad-f [data-f]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.f === filter));
     const list = rows.filter((k) => (filter === "tous" || st(k) === filter) && (!q || `${k.name} ${k.quartier} ${k.tel} ${phoneFmt(k.tel)} ${k.id}`.toLowerCase().includes(q.toLowerCase())));
     document.getElementById("ad-list").innerHTML = list.length ? `<ul class="ops">${list.map((k) => {
@@ -170,7 +182,7 @@ async function viewAdmin() {
       <span class="time">${timeOf(new Date(x.at).toISOString())}</span>
       <span class="what"><b class="${x.kind === "plantage" ? "bad" : ""}">${esc(x.kind)}</b> · ${esc(x.msg)}<br>
         <span class="small muted">${esc(shortDay(dayOf(new Date(x.at))))} · ${esc(names[x.uid] || x.kiosque || t("compte sans kiosque"))} · ${esc(x.role || "—")}${x.who ? " (" + esc(x.who) + ")" : ""} · ${t("écran")} ${esc(x.route)}<br>${esc(x.ua)}</span></span>
-      <span class="acts"><button class="link" data-er="${esc(x.id)}" aria-label="${t("Effacer l'erreur")}">${t("Effacer")}</button></span></li>`).join("")}</ul>` : `<p class="muted">${t("Aucune erreur. Tout marche.")}</p>`;
+      <span class="acts"><button class="link" data-er="${esc(x.id)}" aria-label="${t("Effacer l'erreur")}">${t("Effacer")}</button></span></li>`).join("")}</ul>` : `<p class="muted">${t("Aucune erreur sur 7 jours. Tout marche.")}</p>`;
   }
   paint();
   const invUrl = (id) => location.href.split("#")[0] + "#invite/" + id;

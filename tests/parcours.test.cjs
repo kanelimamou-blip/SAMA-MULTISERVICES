@@ -79,7 +79,7 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   await signup(modou, "Modou Fall", "modou@exemple.sn");
   await modou.evaluate(() => { location.hash = "admin"; }); await modou.waitForSelector("#ad-uid");
   const modouId = await modou.textContent("#ad-uid");
-  assert.ok((await modou.textContent("#view")).includes("pas encore administrateur") && !(await modou.$(".stats")));
+  assert.ok((await modou.textContent("#view")).includes("pas encore administrateur") && !(await modou.$(".kpis")));
   step("client sur #admin : « pas encore administrateur » et son identifiant avec « Copier »");
 
   // le bouton « Espace admin » du haut n'est pas visible pour un client ; le lien discret « Espace propriétaire » est en bas de l'accueil
@@ -91,9 +91,9 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   await ad.goto(URL); await ad.waitForSelector("#email");
   await ad.$eval('.foot a[href="#admin"]', (a) => a.click()); await ad.waitForFunction(() => location.hash === "#admin");
   await login(ad, "admin@exemple.sn", "secret123", "#admin");
-  await ad.waitForSelector(".stats.four");
+  await ad.waitForSelector(".kpis");
   assert.strictEqual(await ad.isVisible("#adminbtn"), true);
-  const kpi = async () => ad.$$eval(".stats b", (b) => b.map((x) => x.textContent));
+  const kpi = async () => ad.$$eval(".kpis b", (b) => b.map((x) => x.textContent));
   assert.deepStrictEqual(await kpi(), ["2", "1", "0", "5"]);
   let txt = await ad.textContent("#view");
   assert.ok(txt.includes("Kiosque Médina") && txt.includes("Médina") && txt.includes("77 123 45 67") && txt.includes("Modou Fall"), "liste des clients");
@@ -109,9 +109,12 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   await ad.click('[data-f="tous"]');
   step("admin : 2 inscrits, 1 actif, 0 inactif, 5 erreurs (plafond par visite) ; recherche, filtres, WhatsApp");
   // une erreur effacée
+  await ad.click("#tab-e");
   const nErr = await ad.$$eval("[data-er]", (b) => b.length);
   await ad.click("[data-er]"); await ad.waitForTimeout(400);
   assert.strictEqual(await ad.$$eval("[data-er]", (b) => b.length), nErr - 1);
+  assert.strictEqual(await ad.textContent("#tab-e"), `Erreurs (${nErr - 1})`);
+  await ad.click("#tab-k");
   step("admin : efface une erreur");
 
   // 6. « Voir » le client, par rôle, en lecture seule
@@ -129,7 +132,7 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   assert.strictEqual(await tryWrite(ad, `() => firebase.firestore().doc("kiosques/${awaId}/cahier/base").set({ json: "{}", at: firebase.firestore.FieldValue.serverTimestamp() })`), "permission-denied");
   assert.strictEqual(await tryWrite(ad, `() => firebase.firestore().doc("kiosques/${awaId}").update({ name: "piraté" })`), "permission-denied");
   assert.strictEqual(await ad.evaluate(() => localStorage.getItem("cahier")), null);
-  await ad.click('#rolebar [data-role="fin"]'); await ad.waitForSelector(".stats.four");
+  await ad.click('#rolebar [data-role="fin"]'); await ad.waitForSelector(".kpis");
   step("admin : « Voir » ouvre le cahier du client en patron puis en employé ; toute écriture est refusée");
 
   // 7. suspension : l'écran du client change tout de suite, et plus aucune écriture n'est possible
@@ -154,13 +157,14 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   await ad.click('#rolebar [data-role="employe"]');
   assert.strictEqual(await ad.evaluate(() => me().name), "Modou");
   if (shots) await ad.screenshot({ path: shots + "/4-presentation.png", fullPage: true });
-  await ad.click("#adminbtn"); await ad.waitForSelector(".stats.four"); assert.strictEqual(await ad.isVisible("#rolebar"), false);
+  await ad.click("#adminbtn"); await ad.waitForSelector(".kpis"); assert.strictEqual(await ad.isVisible("#rolebar"), false);
   step("admin : le bouton « Espace admin » du haut ramène à l'espace admin");
   await ad.click("#ad-demo"); await ad.waitForSelector(".cash .amount");
-  await ad.click('#rolebar [data-role="fin"]'); await ad.waitForSelector(".stats.four");
+  await ad.click('#rolebar [data-role="fin"]'); await ad.waitForSelector(".kpis");
   step("admin : mode présentation, passage patron → employé, retour à l'espace admin");
 
   // 9. invitation d'un nouveau propriétaire : lien et QR code créés par l'admin, utilisés une seule fois
+  await ad.click("#ad-inv-open");
   await ad.fill("#inv-name", "Kiosque Liberté"); await ad.fill("#inv-q", "Liberté 6"); await ad.fill("#inv-tel", "78 111 22 33");
   await ad.click('#ad-inv button[type=submit]'); await ad.waitForSelector("#inv-qr svg.qr");
   const link = await ad.textContent("#inv-url");
@@ -182,12 +186,12 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   await again.fill("#name", "Autre"); await again.fill("#email", "autre@exemple.sn"); await again.fill("#pass", "motdepasse");
   await again.click("#f button[type=submit]"); await again.waitForSelector("#kiosk");
   assert.strictEqual(await again.inputValue("#kiosk"), "");
-  await ad.click("#reload"); await ad.waitForSelector(".stats.four");
+  await ad.click("#reload"); await ad.waitForSelector(".kpis");
   assert.ok((await ad.textContent("#ad-list")).includes("Kiosque Liberté") && !(await ad.textContent("#ad-inv-list")).includes("Kiosque Liberté"));
   step("invitation : déjà servie pour un deuxième compte ; le kiosque invité apparaît chez l'admin");
 
   // l'admin rouvre l'appli : l'espace admin s'ouvre directement
-  await ad.goto(URL); await ad.waitForSelector(".stats.four");
+  await ad.goto(URL); await ad.waitForSelector(".kpis");
   step("admin : à l'ouverture de l'appli, l'espace admin s'ouvre directement");
 
   // 10. le client change de téléphone : il se connecte et retrouve son cahier
