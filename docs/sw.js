@@ -1,5 +1,5 @@
-const CACHE = "cahier-v1";
-const SHELL = ["./", "index.html", "app.css", "i18n.js", "config.js", "codes.js", "sync.js", "app.js", "manifest.webmanifest", "icons/icon-192.png"];
+const CACHE = "cahier-v2";
+const SHELL = ["./", "index.html", "app.css", "i18n.js", "config.js", "codes.js", "sync.js", "core.js", "caisse.js", "gestion.js", "plus.js", "app.js", "manifest.webmanifest", "icons/icon-192.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith("cahier-") && k !== CACHE).map((k) => caches.delete(k))))); self.clients.claim(); });
 // Cache d'abord (ouverture immédiate, même avec un réseau faible), puis mise à jour en arrière-plan
