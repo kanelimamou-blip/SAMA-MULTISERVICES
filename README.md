@@ -18,9 +18,9 @@ Voir `IDEES.md` : l'état de chacune des 100 idées. En bref : cahier de caisse 
 
 ## Mise en ligne
 
-1. Créer le dépôt GitHub `sama-multi-service` (public), y pousser ce dossier.
+1. Dépôt GitHub : `kanelimamou-blip/SAMA-MULTISERVICES`.
 2. Dans le dépôt : Settings › Pages › Source : « GitHub Actions ». Le fichier `.github/workflows/pages.yml` publie `docs/` à chaque modification.
-3. L'appli est alors en ligne sur `https://kanelimamou-blip.github.io/sama-multi-service/`.
+3. L'appli est alors en ligne sur `https://kanelimamou-blip.github.io/SAMA-MULTISERVICES/`.
 
 ## Sauvegarde en ligne (étape suivante)
 
