@@ -21,4 +21,11 @@ const CFG = {
 
 // Projet Firebase (comptes des clients et espace admin). Configuration publique, pas secrète :
 // la sécurité vient des règles Firestore (firestore.rules). Tant qu'elle est vide, l'appli marche sans compte.
-const FIREBASE_CONFIG = null;
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDxtoDEpBh92yEGn80UZUFwLa1KbIjhX6g",
+  authDomain: "sama-3b548.firebaseapp.com",
+  projectId: "sama-3b548",
+  storageBucket: "sama-3b548.firebasestorage.app",
+  messagingSenderId: "1088942015631",
+  appId: "1:1088942015631:web:7f7e95d12e52ba6d8e9cfa",
+};

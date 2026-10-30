@@ -20,7 +20,7 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   await post(`${FS}/emulator/v1/projects/${PROJECT}:securityRules`, { rules: { files: [{ content: rules }] } }, "PUT");
   // 2. l'appli, avec une configuration de test (projet « demo- » => émulateurs) et le SDK Firebase local
   const config = fs.readFileSync(path.join(DOCS, "config.js"), "utf8")
-    .replace("const FIREBASE_CONFIG = null;", `const FIREBASE_CONFIG = { apiKey: "fake", authDomain: "localhost", projectId: "${PROJECT}", appId: "test" };`)
+    .replace(/const FIREBASE_CONFIG = (null|\{[^}]*\});/, `const FIREBASE_CONFIG = { apiKey: "fake", authDomain: "localhost", projectId: "${PROJECT}", appId: "test" };`)
     .replace("admins: [],", `admins: ["${est.localId}"],`);
   assert.ok(config.includes(est.localId));
   const server = http.createServer((req, res) => {
