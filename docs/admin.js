@@ -34,6 +34,12 @@ function viewLogin(mode = location.hash === "#admin" ? "login" : "create", msg =
       ${!create ? `<button class="link" type="button" id="reset">${t("Mot de passe oublié ?")}</button>` : ""}
     </form>
     <button class="btn alt" id="google">${t("Continuer avec Google")}</button>`;
+  $view.insertAdjacentHTML("afterbegin", `<div id="invite-note"></div>`);
+  Compte.readInvite().then((inv) => {
+    const el = document.getElementById("invite-note"); if (!el || !inv) return;
+    el.innerHTML = inv.usedBy ? `<div class="card warn-card"><p class="small">${t("Cette invitation a déjà servi. Connecte-toi avec ton compte, ou crée un compte normalement.")}</p></div>`
+      : `<div class="card note" id="invite-ok"><p>${t("Invitation de l'équipe {app} pour {k}.", { app: esc(CFG.name), k: `<b>${esc(inv.name)}</b>` })}</p><p class="small">${t("Crée ton compte : ton kiosque sera prêt.")}</p></div>`;
+  });
   $view.querySelectorAll("[data-m]").forEach((b) => b.onclick = () => viewLogin(b.dataset.m));
   const err = document.getElementById("err"), fail = (e) => { err.className = "msg-ko"; err.textContent = typeof e === "string" ? e : authMsg(e); err.hidden = false; };
   const after = (blocked) => afterSignIn(blocked);
@@ -86,6 +92,13 @@ const tsDate = (ts) => (ts && ts.toDate ? ts.toDate() : null);
 const ageDays = (k) => (tsDate(k.created) ? daysBetween(dayOf(tsDate(k.created)), today()) : 0);
 // actif : des opérations notées ces 7 derniers jours
 const kState = (k, a) => k.blocked ? ["Suspendu", "off"] : !a ? ["…", ""] : a.ops > 0 ? ["Actif", "on"] : ageDays(k) < 7 ? ["Nouveau", "new"] : ["Inactif", "late"];
+function qrSvg(text, size = 220) {
+  const q = qrcode(0, "M"); q.addData(text); q.make();
+  const n = q.getModuleCount(), m = 2, s = n + m * 2;
+  let d = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${c + m},${r + m}h1v1h-1z`;
+  return `<svg class="qr" viewBox="0 0 ${s} ${s}" width="${size}" height="${size}" role="img" aria-label="QR code"><rect width="${s}" height="${s}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
 const FILTERS = [["tous", "Tous"], ["Actif", "Actifs"], ["Nouveau", "Nouveaux"], ["Inactif", "Inactifs"], ["Suspendu", "Suspendus"]];
 
 async function viewAdmin() {
@@ -102,9 +115,9 @@ async function viewAdmin() {
   }
   $view.innerHTML = `<h1>${t("Espace admin")}</h1><p class="muted">${t("Chargement…")}</p>`;
   const since = addDays(today(), -6);
-  let rows, errs, act = {};
+  let rows, errs, invs, act = {};
   try {
-    [rows, errs] = await Promise.all([Compte.kiosques(), Compte.errors(Date.now() - 7 * 864e5)]);
+    [rows, errs, invs] = await Promise.all([Compte.kiosques(), Compte.errors(Date.now() - 7 * 864e5), Compte.invites()]);
     await Promise.all(rows.map((k) => Compte.activity(k.id, since).then((a) => { act[k.id] = a; }, () => {})));
   } catch (e) {
     $view.innerHTML = `<h1>${t("Espace admin")}</h1><p class="msg-ko">${t("Lecture impossible : {m}", { m: esc(e.code || e.message) })}</p><p class="small muted">${t("Vérifie que les règles Firebase contiennent bien ton identifiant.")}</p><button class="btn alt" id="reload">${t("Réessayer")}</button>`;
@@ -124,6 +137,12 @@ async function viewAdmin() {
     </div>
     <div class="card"><h2>${t("Mode présentation")}</h2><p class="small muted">${t("Montre l'appli sur ton seul téléphone, avec des données d'exemple : tu passes de patron à employé avec la barre en haut de l'écran.")}</p>
       <button class="btn alt" id="ad-demo">${t("Présenter l'appli")}</button></div>
+    <div class="card"><h2>${t("Inviter un nouveau propriétaire")}</h2>
+      <p class="small muted">${t("Prépare son kiosque, puis envoie-lui le lien ou fais-lui scanner le QR code : il crée son compte et retrouve son kiosque déjà nommé.")}</p>
+      <form id="ad-inv">${textInput("inv-name", "", t("Nom du kiosque"), 'maxlength="60" required')}
+        <div class="two">${textInput("inv-q", "", t("Quartier"), 'maxlength="60"')}${textInput("inv-tel", "", t("Téléphone"), 'inputmode="tel" maxlength="20"')}</div>
+        <button class="btn" type="submit">${t("Créer l'invitation")}</button></form>
+      <div id="ad-inv-show"></div><div id="ad-inv-list"></div></div>
     <div id="confirm"></div>
     <div class="card"><h2>${t("Clients")}</h2>
       <input id="ad-q" class="field-in" placeholder="${t("Chercher un nom, un quartier, un téléphone")}" autocomplete="off" value="${esc(q)}">
@@ -153,6 +172,40 @@ async function viewAdmin() {
       <span class="acts"><button class="link" data-er="${esc(x.id)}" aria-label="${t("Effacer l'erreur")}">${t("Effacer")}</button></span></li>`).join("")}</ul>` : `<p class="muted">${t("Aucune erreur. Tout marche.")}</p>`;
   }
   paint();
+  const invUrl = (id) => location.href.split("#")[0] + "#invite/" + id;
+  function showInvite(inv) {
+    const url = invUrl(inv.id);
+    document.getElementById("ad-inv-show").innerHTML = `<div class="qr-box" id="inv-qr"><b>${esc(inv.name)}</b>${qrSvg(url, 220)}
+      <span class="small">${t("Scanne pour ouvrir ton kiosque {app}", { app: esc(CFG.name) })}</span><span class="small copy" id="inv-url">${esc(url)}</span></div>
+      <div class="two"><button class="btn alt" type="button" id="inv-copy">${t("Copier le lien")}</button>
+      ${inv.tel ? `<a class="btn" target="_blank" rel="noopener" href="${waLink(inv.tel, t("Bonjour, voici ton invitation pour {k} sur {app} : {u}", { k: inv.name, app: CFG.name, u: url }))}">${t("Envoyer par WhatsApp")}</a>`
+        : navigator.share ? `<button class="btn" type="button" id="inv-share">${t("Partager")}</button>` : ""}</div>`;
+    document.getElementById("inv-copy").onclick = () => copyText(url);
+    const sh = document.getElementById("inv-share"); if (sh) sh.onclick = () => navigator.share({ title: CFG.name, text: inv.name, url }).catch(() => {});
+    document.getElementById("ad-inv-show").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  function paintInvites() {
+    const wait = invs.filter((i) => !i.usedBy).sort((a, b) => (tsDate(b.created) || 0) - (tsDate(a.created) || 0));
+    document.getElementById("ad-inv-list").innerHTML = wait.length ? `<h3>${t("Invitations en attente")}</h3><ul class="ops">${wait.map((i) => `<li class="op acct" data-inv="${esc(i.id)}">
+      <span class="what"><b>${esc(i.name)}</b><br><span class="small muted">${[i.quartier, phoneFmt(i.tel)].filter(Boolean).map(esc).join(" · ")}${i.quartier || i.tel ? " · " : ""}${t("créée le {d}", { d: tsDate(i.created) ? esc(shortDay(dayOf(tsDate(i.created)))) : "—" })}</span></span>
+      <span class="pill new">${t("En attente")}</span>
+      <span class="acts"><button class="link" data-iv="qr">${t("QR et lien")}</button><button class="link" data-iv="del">${t("Supprimer")}</button></span></li>`).join("")}</ul>` : "";
+  }
+  paintInvites();
+  document.getElementById("ad-inv").onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector("[type=submit]"); btn.disabled = true;
+    const d = { name: val("inv-name").trim(), quartier: val("inv-q").trim(), tel: val("inv-tel") };
+    try { const id = await Compte.createInvite(d); const inv = { id, ...d, tel: phoneClean(d.tel), created: null, usedBy: null }; invs.push(inv); e.target.reset(); paintInvites(); showInvite(inv); }
+    catch { toast(t("Refusé : ce compte n'est pas admin dans les règles Firebase.")); }
+    btn.disabled = false;
+  };
+  document.getElementById("ad-inv-list").onclick = async (e) => {
+    const b = e.target.closest("[data-iv]"); if (!b) return;
+    const inv = invs.find((i) => i.id === b.closest("[data-inv]").dataset.inv); if (!inv) return;
+    if (b.dataset.iv === "qr") return showInvite(inv);
+    try { await Compte.removeInvite(inv.id); invs = invs.filter((i) => i !== inv); document.getElementById("ad-inv-show").innerHTML = ""; paintInvites(); } catch { toast(t("Suppression refusée.")); }
+  };
   document.getElementById("reload").onclick = viewAdmin;
   document.getElementById("ad-demo").onclick = () => enterDemo();
   document.getElementById("ad-q").oninput = (e) => { q = viewAdmin.q = e.target.value.trim(); paint(); };

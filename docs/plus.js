@@ -389,9 +389,9 @@ function viewSetup() {
     </div>
     <div class="card note"><p><b>${t("L'appli ne fait aucun transfert.")}</b> ${t("Elle n'est pas reliée à Wave, Orange Money ou aux autres. Elle ne te demandera jamais ton code secret d'opérateur.")}</p></div>
     <form class="card" id="f">
-      ${textInput("kiosk", "", t("Nom du kiosque"), `maxlength="40" required placeholder="${t("Ex. Kiosque Médina")}"`)}
+      ${textInput("kiosk", S.kiosk, t("Nom du kiosque"), `maxlength="40" required placeholder="${t("Ex. Kiosque Médina")}"`)}
       ${textInput("boss", "", t("Ton prénom"), 'maxlength="30"')}
-      <div class="two">${textInput("quartier", "", t("Quartier"), 'maxlength="40"')}${textInput("tel", "", t("Téléphone"), 'inputmode="tel" maxlength="20"')}</div>
+      <div class="two">${textInput("quartier", S.quartier, t("Quartier"), 'maxlength="40"')}${textInput("tel", phoneFmt(S.tel), t("Téléphone"), 'inputmode="tel" maxlength="20"')}</div>
       <fieldset class="field"><legend>${t("Opérateurs que tu proposes")}</legend>
         <div class="checks">${CFG.operators.map((o) => `<label class="check"><input type="checkbox" name="op" value="${o.id}" ${o.id === "wave" || o.id === "om" ? "checked" : ""}> ${esc(o.name)}</label>`).join("")}</div></fieldset>
       <fieldset class="field"><legend>${t("Code de l'appli (4 chiffres)")}</legend>

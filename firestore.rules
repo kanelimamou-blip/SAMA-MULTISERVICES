@@ -15,8 +15,11 @@ service cloud.firestore {
     // Le client ne peut ni se suspendre, ni se réactiver, ni changer sa date d'inscription.
     match /kiosques/{uid} {
       allow read: if me(uid) || admin();
+      // « invite » : le code de l'invitation de l'admin, qui doit être marquée utilisée par ce compte dans la même écriture
       allow create: if me(uid)
-        && request.resource.data.keys().hasOnly(['name', 'quartier', 'tel', 'owner', 'created', 'lastActive'])
+        && request.resource.data.keys().hasOnly(['name', 'quartier', 'tel', 'owner', 'created', 'lastActive', 'invite'])
+        && (!('invite' in request.resource.data)
+          || getAfter(/databases/$(db)/documents/invitations/$(request.resource.data.invite)).data.usedBy == uid)
         && request.resource.data.owner == uid
         && str(request.resource.data.name, 60) && str(request.resource.data.quartier, 60) && str(request.resource.data.tel, 20)
         && request.resource.data.created == request.time && request.resource.data.lastActive == request.time;
@@ -39,6 +42,22 @@ service cloud.firestore {
           && str(request.resource.data.json, 900000) && request.resource.data.at == request.time;
         allow delete: if me(uid) && open(uid);
       }
+    }
+
+    // Invitations de l'admin (lien ou QR code) : seul l'admin les crée, les liste et les supprime.
+    // Qui a le code (long et tiré au hasard) peut la lire, et l'utiliser une seule fois en créant son kiosque.
+    match /invitations/{code} {
+      allow get: if true;
+      allow list, delete: if admin();
+      allow create: if admin()
+        && request.resource.data.keys().hasOnly(['name', 'quartier', 'tel', 'created', 'by', 'usedBy'])
+        && str(request.resource.data.name, 60) && str(request.resource.data.quartier, 60) && str(request.resource.data.tel, 20)
+        && request.resource.data.created == request.time && request.resource.data.by == request.auth.uid && request.resource.data.usedBy == null;
+      allow update: if signed() && resource.data.usedBy == null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedBy', 'usedAt'])
+        && request.resource.data.usedBy == request.auth.uid && request.resource.data.usedAt == request.time
+        && !exists(/databases/$(db)/documents/kiosques/$(request.auth.uid))
+        && getAfter(/databases/$(db)/documents/kiosques/$(request.auth.uid)).data.invite == code;
     }
 
     // Erreurs remontées par les téléphones (plantage, écriture refusée) : chacun envoie les siennes, seul l'admin les lit et les efface

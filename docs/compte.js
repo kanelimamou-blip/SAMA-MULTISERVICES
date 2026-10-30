@@ -53,7 +53,7 @@ const Compte = (() => {
     try { snap = await ref.get(); } catch (e) { refused("lecture du kiosque", e); return !!cache.blocked; }
     if (!snap.exists) {
       const d = { name: (S.kiosk || user.displayName || "").slice(0, 60), quartier: (S.quartier || "").slice(0, 60), tel: phoneClean(S.tel).slice(0, 20), owner: user.uid, created: ts(), lastActive: ts() };
-      try { await ref.set(d); } catch (e) { refused("création du kiosque", e); }
+      if (!(await useInvite(ref, d))) { try { await ref.set(d); } catch (e) { refused("création du kiosque", e); } }
       fiche = { ...d, blocked: false };
     } else fiche = snap.data();
     keep({ blocked: fiche.blocked === true });
@@ -66,6 +66,24 @@ const Compte = (() => {
     }, () => {});
     await pull();
     return fiche.blocked === true;
+  }
+  // ---------- Invitation envoyée par l'admin (lien ou QR code #invite/CODE) : le kiosque est créé avec le nom, le quartier
+  // et le téléphone préparés par l'admin, et l'invitation est marquée utilisée dans la même écriture.
+  let inviteCode = null;
+  try { inviteCode = sessionStorage.getItem("invite"); } catch {}
+  function setInvite(code) { inviteCode = code; try { code ? sessionStorage.setItem("invite", code) : sessionStorage.removeItem("invite"); } catch {} }
+  const readInvite = () => (inviteCode && db ? db.collection("invitations").doc(inviteCode).get().then((s) => (s.exists ? { id: s.id, ...s.data() } : null), () => null) : Promise.resolve(null));
+  async function useInvite(ref, d) {
+    const inv = await readInvite();
+    setInvite(null);
+    if (!inv || inv.usedBy) return false;
+    Object.assign(d, { name: inv.name, quartier: inv.quartier, tel: inv.tel, invite: inv.id });
+    const b = db.batch();
+    b.update(db.collection("invitations").doc(inv.id), { usedBy: user.uid, usedAt: ts() });
+    b.set(ref, d);
+    try { await b.commit(); } catch (e) { refused("invitation", e); delete d.invite; return false; }
+    if (KEY === "cahier" && !S.kiosk) { Object.assign(S, { kiosk: inv.name, quartier: inv.quartier, tel: inv.tel }); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} }
+    return true;
   }
   const blocked = () => !!(fiche ? fiche.blocked === true : cache.blocked);
 
@@ -193,9 +211,16 @@ const Compte = (() => {
   const errors = (sinceMs) => db.collection("erreurs").where("at", ">=", sinceMs).orderBy("at", "desc").limit(200).get().then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() })));
   const setBlocked = (id, b) => db.collection("kiosques").doc(id).update({ blocked: b });
   const removeError = (id) => db.collection("erreurs").doc(id).delete();
+  const createInvite = async ({ name, quartier, tel }) => {
+    const code = [...crypto.getRandomValues(new Uint8Array(15))].map((x) => "abcdefghijkmnpqrstuvwxyz23456789"[x % 32]).join("");
+    await db.collection("invitations").doc(code).set({ name: name.slice(0, 60), quartier: quartier.slice(0, 60), tel: phoneClean(tel).slice(0, 20), created: ts(), by: user.uid, usedBy: null });
+    return code;
+  };
+  const invites = () => db.collection("invitations").get().then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() })));
+  const removeInvite = (id) => db.collection("invitations").doc(id).delete();
   const loadCahier = (id) => db.collection("kiosques").doc(id).collection("cahier").get().then((s) => assemble(s.docs));
 
   return { enabled, start, signInGoogle, signInEmail, resetPassword, signOut, refresh, dirty, push, report, isAdmin, blocked,
-    kiosques, activity, errors, setBlocked, removeError, loadCahier,
+    kiosques, activity, errors, setBlocked, removeError, loadCahier, setInvite, readInvite, createInvite, invites, removeInvite,
     get user() { return user; }, get fiche() { return fiche; } };
 })();

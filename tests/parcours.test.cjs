@@ -150,14 +150,40 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   await ad.click('#rolebar [data-role="fin"]'); await ad.waitForSelector(".stats.four");
   step("admin : mode présentation, passage patron → employé, retour à l'espace admin");
 
-  // 9. le client change de téléphone : il se connecte et retrouve son cahier
+  // 9. invitation d'un nouveau propriétaire : lien et QR code créés par l'admin, utilisés une seule fois
+  await ad.fill("#inv-name", "Kiosque Liberté"); await ad.fill("#inv-q", "Liberté 6"); await ad.fill("#inv-tel", "78 111 22 33");
+  await ad.click('#ad-inv button[type=submit]'); await ad.waitForSelector("#inv-qr svg.qr");
+  const link = await ad.textContent("#inv-url");
+  assert.ok(/#invite\/[a-z0-9]{15}$/.test(link), "lien d'invitation");
+  assert.ok(await ad.$('#ad-inv-show a[href^="https://wa.me/221781112233"]'), "envoi par WhatsApp");
+  assert.ok((await ad.textContent("#ad-inv-list")).includes("Kiosque Liberté"));
+  if (shots) await ad.screenshot({ path: shots + "/5-invitation.png", fullPage: true });
+  const fatou = await page();
+  await fatou.goto(link); await fatou.waitForSelector("#invite-ok");
+  assert.ok((await fatou.textContent("#invite-ok")).includes("Kiosque Liberté"));
+  if (shots) await fatou.screenshot({ path: shots + "/6-lien-invitation.png", fullPage: true });
+  await fatou.fill("#name", "Fatou Sow"); await fatou.fill("#email", "fatou@exemple.sn"); await fatou.fill("#pass", "motdepasse");
+  await fatou.click("#f button[type=submit]"); await fatou.waitForSelector("#kiosk");
+  assert.strictEqual(await fatou.inputValue("#kiosk"), "Kiosque Liberté");
+  assert.strictEqual(await fatou.inputValue("#quartier"), "Liberté 6");
+  step("invitation : l'admin crée le lien et le QR code ; le nouveau propriétaire s'inscrit et trouve son kiosque déjà nommé");
+  const again = await page();
+  await again.goto(link); await again.waitForSelector("#invite-note .warn-card");
+  await again.fill("#name", "Autre"); await again.fill("#email", "autre@exemple.sn"); await again.fill("#pass", "motdepasse");
+  await again.click("#f button[type=submit]"); await again.waitForSelector("#kiosk");
+  assert.strictEqual(await again.inputValue("#kiosk"), "");
+  await ad.click("#reload"); await ad.waitForSelector(".stats.four");
+  assert.ok((await ad.textContent("#ad-list")).includes("Kiosque Liberté") && !(await ad.textContent("#ad-inv-list")).includes("Kiosque Liberté"));
+  step("invitation : déjà servie pour un deuxième compte ; le kiosque invité apparaît chez l'admin");
+
+  // 10. le client change de téléphone : il se connecte et retrouve son cahier
   const awa2 = await page();
   await login(awa2, "awa@exemple.sn", "motdepasse"); await awa2.waitForSelector(".cash .amount");
   assert.strictEqual(await amount(awa2), "110000F");
   step("client sur un autre téléphone : cahier récupéré depuis son compte");
 
   assert.notStrictEqual(modouId, est.localId);
-  for (const p of [awa, modou, ad, awa2]) assert.deepStrictEqual(p.errs.filter((e) => !e.includes("plantage de test")), []);
+  for (const p of [awa, modou, ad, awa2, fatou, again]) assert.deepStrictEqual(p.errs.filter((e) => !e.includes("plantage de test")), []);
   await browser.close(); server.close();
   console.log("\nParcours réussi");
 })().catch((e) => { console.error("ÉCHEC", e); process.exit(1); });

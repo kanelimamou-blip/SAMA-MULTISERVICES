@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const assert = require("assert");
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require("@firebase/rules-unit-testing");
-const { doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, collection, getDocs, serverTimestamp, query, where } = require("firebase/firestore");
+const { doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, collection, getDocs, serverTimestamp, query, where, writeBatch } = require("firebase/firestore");
 
 const ADMIN = "proprietaire-uid";
 (async () => {
@@ -71,6 +71,23 @@ const ADMIN = "proprietaire-uid";
   await ok("admin : lire les erreurs", Promise.resolve(assert.strictEqual(errs.size, 1)));
   await no("client : effacer une erreur", deleteDoc(doc(alice, "erreurs/" + errs.docs[0].id)));
   await ok("admin : effacer une erreur", deleteDoc(doc(admin, "erreurs/" + errs.docs[0].id)));
+  // invitations de l'admin (lien ou QR code)
+  const carol = env.authenticatedContext("carol").firestore(), dan = env.authenticatedContext("dan").firestore();
+  const inv = { name: "Kiosque Liberté", quartier: "Liberté 6", tel: "781112233", created: serverTimestamp(), by: ADMIN, usedBy: null };
+  await no("client : créer une invitation", setDoc(doc(alice, "invitations/codeA"), { ...inv, by: "alice" }));
+  await ok("admin : créer une invitation", setDoc(doc(admin, "invitations/code-liberte-123"), inv));
+  await no("admin : invitation déjà utilisée à la création", setDoc(doc(admin, "invitations/code2"), { ...inv, usedBy: "carol" }));
+  await ok("lire une invitation avec son code, sans compte", getDoc(doc(anon, "invitations/code-liberte-123")));
+  await no("lister les invitations (client)", getDocs(collection(alice, "invitations")));
+  await ok("admin : lister les invitations", getDocs(collection(admin, "invitations")));
+  await no("marquer l'invitation utilisée sans créer son kiosque", updateDoc(doc(carol, "invitations/code-liberte-123"), { usedBy: "carol", usedAt: serverTimestamp() }));
+  await no("kiosque avec une invitation qu'on n'utilise pas", setDoc(doc(carol, "kiosques/carol"), { ...fiche("carol"), invite: "code-liberte-123" }));
+  await no("utiliser l'invitation pour un compte qui a déjà un kiosque", (() => { const b = writeBatch(alice); b.update(doc(alice, "invitations/code-liberte-123"), { usedBy: "alice", usedAt: serverTimestamp() }); b.set(doc(alice, "kiosques/alice"), { ...fiche("alice"), invite: "code-liberte-123" }); return b.commit(); })());
+  const use = (db, uid) => { const b = writeBatch(db); b.update(doc(db, "invitations/code-liberte-123"), { usedBy: uid, usedAt: serverTimestamp() }); b.set(doc(db, "kiosques/" + uid), { ...fiche(uid), name: inv.name, invite: "code-liberte-123" }); return b.commit(); };
+  await ok("nouveau propriétaire : utiliser l'invitation en créant son kiosque", use(carol, "carol"));
+  await no("réutiliser une invitation déjà servie", use(dan, "dan"));
+  await no("client : supprimer une invitation", deleteDoc(doc(carol, "invitations/code-liberte-123")));
+  await ok("admin : supprimer une invitation", deleteDoc(doc(admin, "invitations/code-liberte-123")));
   await env.cleanup();
   console.log(`\n${n} vérifications des règles réussies`);
 })().catch((e) => { console.error("ÉCHEC", e); process.exit(1); });

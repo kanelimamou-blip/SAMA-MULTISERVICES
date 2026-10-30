@@ -62,6 +62,9 @@ function toLogin() {
   location.hash = ""; render();
 }
 async function boot() {
+  // lien ou QR code d'invitation envoyé par l'admin : #invite/CODE
+  const inv = location.hash.match(/^#invite\/([a-z0-9]{10,40})$/);
+  if (inv) { Compte.setInvite(inv[1]); history.replaceState(null, "", location.pathname + location.search); }
   // le mode démonstration survit au rechargement de la page
   try { if (sessionStorage.getItem("demo")) { KEY = "cahier-demo"; S = Object.assign(DEFAULTS(), store.load()); migrate(); } } catch {}
   document.documentElement.lang = LANG;

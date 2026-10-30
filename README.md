@@ -15,6 +15,7 @@ Pas de paiement dans l'appli et aucun blocage automatique : le propriétaire enc
 - `docs/` : l'appli (HTML/JS sans dépendance, polices du téléphone, environ 150 Ko), publiée sur GitHub Pages à chaque modification de `main`.
   `core.js` (données et calculs), `compte.js` (comptes Firebase, copie en ligne du cahier, suspension, erreurs), `caisse.js` (caisse, journal, clôture), `gestion.js` (gains, float, services, rapports), `plus.js` (équipe, sécurité, clients, formation, réglages, démo), `admin.js` (connexion, compte suspendu, espace admin, « Voir », barre de rôles), `app.js` (navigation et démarrage).
 - `docs/config.js` : nom, numéro WhatsApp d'assistance, opérateurs, numéro affiché aux clients suspendus (`contact`), liste `admins` (UID Firebase des comptes admin, jamais d'e-mail), configuration Firebase.
+- `docs/vendor/qrcode.js` : générateur de QR code (Kazuhiko Arase, licence MIT).
 - `docs/i18n.js` : textes. Pour le wolof, remplir `WO` avec « phrase française » : « traduction ».
 - `firestore.rules` : règles Firestore (mettre l'UID de l'admin dans la fonction `admin()` : `request.auth.uid in ['UID']`, puis coller dans la console).
 - `tests/` : tests des règles et parcours complet dans un navigateur, avec les émulateurs Firebase.
@@ -35,6 +36,7 @@ Page `#admin` :
 - clients : nom, quartier, téléphone, inscription, opérations des 7 derniers jours, état (Actif, Nouveau, Inactif, Suspendu), recherche et filtres ;
 - par client : Suspendre/Réactiver, WhatsApp, « Voir » (l'appli comme le client la voit, en patron ou en employé, en lecture seule) ;
 - erreurs (`erreurs`) : plantages et écritures refusées, au plus 5 par visite, avec message, écran, client, rôle et téléphone ; l'admin les efface ;
+- inviter un nouveau propriétaire : l'admin prépare le kiosque (nom, quartier, téléphone) et obtient un lien `#invite/CODE` et son QR code (copier, WhatsApp, partager). Le propriétaire s'inscrit par ce lien et trouve son kiosque déjà nommé ; l'invitation ne sert qu'une fois (vérifié par les règles) ;
 - mode présentation : données d'exemple et barre du haut pour passer de patron à employé.
 
 Les règles Firestore font la sécurité : seul l'admin lit la liste, les cahiers et les erreurs ; il ne peut modifier que `blocked`. Un kiosque suspendu voit « suspendu, contacte l'équipe au 78 272 19 20 » et les règles refusent toutes ses écritures, même en contournant l'appli ; il ne peut pas se réactiver.
