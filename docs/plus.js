@@ -1,5 +1,5 @@
 "use strict";
-// plus.js : menu « Plus », employés, sécurité, clients, formation, outils, abonnement, réglages, démonstration.
+// plus.js : menu « Plus », employés, sécurité, clients, formation, outils, réglages, démonstration.
 
 function viewMore() {
   const boss = isBoss();
@@ -11,7 +11,7 @@ function viewMore() {
     ${g("Sécurité", [["securite", "Fiches anti-arnaque", "Faux SMS, erreur de transfert, faux agent, blanchiment"], ["alerte", "Alerte discrète", "Prévenir un proche en un geste"], boss && ["regles", "Règles et plafonds", "Pièce d'identité, plafonds, opérations inhabituelles, numéros suspects"], boss && ["journal-acces", "Qui a ouvert l'appli", "Journal des ouvertures et des actions"]])}
     ${g("Équipe", [boss && ["equipe", "Employés", "Codes, droits, salaires, avances, primes"], ["planning", "Planning", "Qui travaille quel jour"]])}
     ${g("Apprendre", [["cours", "Petit cours de gestion", "Float, trésorerie, marge"], ["quiz", "Quiz et badge", "Règles et arnaques : deviens « agent formé »"], ["fiches", "Fiches à garder", "Nouveaux services, règles du secteur, conseils aux clients"], ["demo", "Mode démonstration", "Essayer avec des exemples, former un nouvel agent"]])}
-    ${g("Compte", [["abonnement", "Abonnement", paidLeft() > 0 ? "Actif" : trialLeft() > 0 ? "Essai en cours" : "Essai terminé"], ["parrainage", "Parrainer un agent", "Partager l'appli à un collègue"], ["aide", "Aide", "Guide d'utilisation et assistance WhatsApp"], boss && ["reglages", "Réglages", "Kiosque, opérateurs, horaires, langue"]])}
+    ${g("Compte", [Compte.enabled && ["compte", "Mon compte", "Connexion, statut du compte"], ["parrainage", "Parrainer un agent", "Partager l'appli à un collègue"], ["aide", "Aide", "Guide d'utilisation et assistance WhatsApp"], boss && ["reglages", "Réglages", "Kiosque, opérateurs, horaires, langue"]])}
     <button class="btn alt" id="lockbtn">${anyPin() ? t("Verrouiller maintenant") : t("Mettre un code à l'appli")}</button>`;
   document.getElementById("lockbtn").onclick = () => (anyPin() ? lock() : go(isBoss() ? "equipe" : "accueil"));
 }
@@ -321,50 +321,6 @@ function viewFiches() {
   wireLists(viewFiches);
 }
 
-// ---------- Abonnement : mois ou année, payé par Wave ou Orange Money, puis code reçu
-function viewSub(reason = "", pay = "wave") {
-  const number = pay === "om" ? CFG.om_number : CFG.wave_number;
-  const msg = t("Bonjour, j'ai payé l'abonnement {app} du kiosque « {k} » par {via}. Voici ma capture :", { app: CFG.name, via: pay === "om" ? "Orange Money" : "Wave", k: S.kiosk });
-  $view.innerHTML = `<h1>${t("Abonnement")}</h1>
-    ${reason ? `<p><b>${esc(reason)}</b></p>` : ""}
-    <div class="card">
-      ${paidLeft() > 0 ? `<p class="good"><b>${t("Abonnement actif jusqu'au {d}.", { d: esc(longDay(S.paidUntil)) })}</b></p>`
-        : trialLeft() > 0 ? `<p>${t("Essai gratuit en cours : encore {n} jour(s) avec tout débloqué.", { n: trialLeft() })}</p>`
-        : `<p>${t("Ton essai de {n} jours est terminé. Sans abonnement : {f} opérations par jour.", { n: CFG.trial_days, f: CFG.free_ops_per_day })}</p>`}
-      <div class="prices">
-        <div><b>${fmt(CFG.price_fcfa)}</b><span>${t("par mois")}</span></div>
-        <div><b>${fmt(CFG.price_year)}</b><span>${t("par an")}</span></div>
-        <div><b>${fmt(CFG.price_multi)}</b><span>${t("par mois et par kiosque, à partir de {n} kiosques", { n: CFG.multi_from })}</span></div>
-      </div>
-      <ul class="steps"><li>${t("Opérations sans limite")}</li><li>${t("Commissions, gains, rapports et employés")}</li><li>${t("Les nouveautés ajoutées chaque mois")}</li></ul>
-    </div>
-    <div class="card"><h2>${t("Comment payer")}</h2>
-      <div class="seg"><button type="button" data-pay="wave" aria-pressed="${pay === "wave"}">Wave</button><button type="button" data-pay="om" aria-pressed="${pay === "om"}">Orange Money</button></div>
-      <ol class="steps">
-        <li>${t("Envoie le montant par {via} au", { via: pay === "om" ? "Orange Money" : "Wave" })} <b class="copy">${esc(number)}</b> <button class="link" type="button" id="copy">${t("Copier")}</button></li>
-        <li>${t("Envoie la capture du paiement par WhatsApp au même numéro.")}</li>
-        <li>${t("Tu reçois ton code d'abonnement. Entre-le ci-dessous.")}</li>
-      </ol>
-      <a class="btn alt" href="${waLink(CFG.whatsapp.slice(3), msg)}" target="_blank" rel="noopener">${t("Envoyer la capture sur WhatsApp")}</a>
-      <p class="small muted">${t("Ce paiement concerne seulement l'abonnement à l'appli. L'appli ne fait aucun transfert pour tes clients.")}</p>
-    </div>
-    <div class="card"><h2>${t("J'ai un code")}</h2>
-      <input class="code" id="code" placeholder="XXXXX-XXXXXX" autocomplete="off" maxlength="13">
-      <button class="btn" id="unlock">${t("Activer")}</button><p id="codemsg" class="small"></p></div>`;
-  $view.querySelectorAll("[data-pay]").forEach((b) => b.onclick = () => viewSub(reason, b.dataset.pay));
-  document.getElementById("copy").onclick = () => copyText(number.replace(/\s/g, ""));
-  document.getElementById("unlock").onclick = async () => {
-    const raw = document.getElementById("code").value.trim().toUpperCase().replace(/\s/g, "");
-    const code = raw.length === 11 && !raw.includes("-") ? raw.slice(0, 5) + "-" + raw.slice(5) : raw;
-    const m = document.getElementById("codemsg"), h = await sha256(CFG.salt + code);
-    const days = S.usedCodes.includes(code) ? 0 : CFG.codes.includes(h) ? CFG.sub_days : (CFG.codes_year || []).includes(h) ? 365 : 0;
-    if (!days) { m.className = "msg-ko"; m.textContent = t("Code inconnu ou déjà utilisé. Vérifie les lettres et les chiffres."); return; }
-    const from = S.paidUntil && S.paidUntil >= today() ? addDays(S.paidUntil, 1) : today();
-    S.paidUntil = addDays(from, days - 1); S.usedCodes.push(code); store.save();
-    m.className = "msg-ok"; m.textContent = t("Code accepté : abonnement actif jusqu'au {d}.", { d: longDay(S.paidUntil) });
-    setTimeout(() => { if (location.hash === "#abonnement") viewSub(); }, 1400);
-  };
-}
 function viewParrainage() {
   const url = location.href.split("#")[0];
   const text = t("J'utilise {app} pour tenir la caisse de mon kiosque : dépôts, retraits, liquide, commissions et clôture du soir. 10 jours gratuits, sans connexion. Essaie : {u}", { app: CFG.name, u: url });
@@ -385,7 +341,7 @@ function viewAide() {
   $view.innerHTML = `<h1>${t("Aide")}</h1>
     <div class="card"><h2>${t("Guide en 5 étapes")}</h2><ol class="steps">${steps.map(([h, p]) => `<li><b>${t(h)}</b> : ${t(p)}</li>`).join("")}</ol></div>
     <a class="card linkcard" href="#demo"><b>${t("Essayer en mode démonstration")}</b><span class="small muted">${t("Des exemples pour apprendre sans toucher à ton cahier.")}</span></a>
-    <div class="card"><h2>${t("Assistance")}</h2><p class="small">${t("Une question, un problème ? Écris-nous sur WhatsApp au")} <b class="copy">${esc(CFG.wave_number)}</b>.</p>
+    <div class="card"><h2>${t("Assistance")}</h2><p class="small">${t("Une question, un problème ? Écris-nous sur WhatsApp au")} <b class="copy">${esc(phoneFmt(CFG.whatsapp.slice(3)))}</b>.</p>
       <a class="btn" href="${waLink(CFG.whatsapp.slice(3), t("Bonjour, j'ai une question sur {app} :", { app: CFG.name }))}" target="_blank" rel="noopener">${t("Écrire sur WhatsApp")}</a></div>
     <div class="card note"><p class="small">${t("L'appli ne fait aucun transfert et ne te demandera jamais ton code secret d'opérateur.")}</p></div>`;
 }
@@ -404,7 +360,7 @@ function viewSettings() {
     ${"Notification" in window && Notification.permission === "default" ? `<button class="btn alt" id="notif">${t("Autoriser les rappels (notifications)")}</button>` : ""}
     ${woReady() ? `<div class="card"><h2>${t("Langue")}</h2><div class="seg">${Object.entries(LANGS).map(([k, v]) => `<button type="button" data-lang="${k}" aria-pressed="${LANG === k}">${v}</button>`).join("")}</div></div>` : ""}
     <a class="card linkcard" href="#equipe"><b>${t("Codes et employés")}</b><span class="small muted">${anyPin() ? t("L'appli se verrouille à l'ouverture et après 1 minute hors de l'écran.") : t("Aucun code : n'importe qui peut ouvrir ton cahier.")}</span></a>
-    <a class="card linkcard" href="#export"><b>${t("Sauvegarde")}</b><span class="small muted">${Sync.enabled ? t("Sauvegarde en ligne active.") : t("Le cahier est gardé sur ce téléphone. Fais une sauvegarde de temps en temps.")}</span></a>
+    <a class="card linkcard" href="#export"><b>${t("Sauvegarde")}</b><span class="small muted">${t("Le cahier est gardé sur ce téléphone. Fais une sauvegarde de temps en temps.")}</span></a>
     <div class="card"><h2>${t("Effacer le cahier")}</h2><p class="small muted">${t("Supprime toutes les opérations de ce téléphone. Écris EFFACER pour confirmer.")}</p>
       <input id="wipe" autocomplete="off" placeholder="EFFACER"><button class="btn danger" id="wipebtn">${t("Tout effacer")}</button></div>`;
   document.getElementById("fk").onsubmit = (e) => {
@@ -412,15 +368,14 @@ function viewSettings() {
     const ops = [...$view.querySelectorAll("input[name=op]:checked")].map((i) => i.value);
     if (!ops.length) return toast(t("Coche au moins un opérateur."));
     Object.assign(S, { kiosk: val("kiosk").trim(), operators: ops, hours: val("hours").trim(), closeAt: val("closeat") });
+    Compte.setKiosk(S.kiosk);
     store.save(); paintTop(); toast(t("Enregistré."));
   };
   const nb = document.getElementById("notif"); if (nb) nb.onclick = () => Notification.requestPermission().then(() => viewSettings());
   $view.querySelectorAll("[data-lang]").forEach((b) => b.onclick = () => { setLang(b.dataset.lang); render(); });
   document.getElementById("wipebtn").onclick = () => {
     if (val("wipe").trim().toUpperCase() !== "EFFACER") return toast(t("Écris EFFACER pour confirmer."));
-    // l'essai et l'abonnement restent : effacer le cahier ne relance pas l'essai
-    const keep = { trialStart: S.trialStart, paidUntil: S.paidUntil, usedCodes: S.usedCodes };
-    S = Object.assign(DEFAULTS(), keep); migrate(); store.save(); location.hash = ""; render();
+    S = DEFAULTS(); migrate(); store.save(); location.hash = ""; render();
   };
 }
 
@@ -453,6 +408,7 @@ function viewSetup() {
     if (!ops.length) return fail(t("Coche au moins un opérateur."));
     if (p1 || p2) { if (!/^\d{4}$/.test(p1)) return fail(t("Le code doit avoir 4 chiffres.")); if (p1 !== p2) return fail(t("Les deux codes ne sont pas pareils.")); }
     S.kiosk = val("kiosk").trim(); S.operators = ops;
+    Compte.setKiosk(S.kiosk);
     const boss = S.users[0]; boss.name = val("boss").trim() || t("Patron"); if (p1) boss.pin = await makePin(p1);
     ME = boss.id;
     store.save(); document.body.classList.remove("bare"); go("ouverture");
@@ -464,7 +420,7 @@ function enterDemo() {
   KEY = "cahier-demo";
   const d = DEFAULTS(), day = today(), ops = ["wave", "om", "free"];
   Object.assign(d, { kiosk: t("Kiosque exemple"), operators: ops, users: [{ id: "patron", name: "Awa", role: "patron", pin: null }, { id: "e1", name: "Modou", role: "employe", pin: null, salary: 60000, prime: 10 }],
-    trialStart: day, seuils: { cash: 50000, float: { wave: 50000, om: 30000, free: 20000 } }, hours: "Lun–Sam 8 h – 21 h",
+    seuils: { cash: 50000, float: { wave: 50000, om: 30000, free: 20000 } }, hours: "Lun–Sam 8 h – 21 h",
     baremes: { wave: { depot: [{ max: 0, val: "0" }], retrait: [{ max: 0, val: "0,5%" }] }, om: { depot: [{ max: 0, val: "0,3%" }], retrait: [{ max: 0, val: "0,6%" }] }, free: { depot: [{ max: 0, val: "0,3%" }], retrait: [{ max: 0, val: "0,6%" }] } },
     services: [{ id: "s1", name: t("Crédit téléphonique"), mode: "commission", floatOp: "om", com: 5, comType: "pct" }, { id: "s2", name: t("Woyofal"), mode: "commission", floatOp: "wave", com: 1, comType: "pct" }, { id: "s3", name: t("Photocopie et impression"), mode: "revenu", floatOp: "" }],
     stock: [{ id: "p1", name: t("Carte SIM"), cost: 300, price: 500, qty: 18, min: 5 }, { id: "p2", name: t("Chargeur"), cost: 1500, price: 2500, qty: 4, min: 3 }],

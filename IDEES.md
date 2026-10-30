@@ -12,8 +12,9 @@
 | 20 | Liste noire partagée | 🟡 liste personnelle ; partage ⏳ Firebase (à décider avec prudence) |
 | 21–25 | Code secret, sécurité du liquide, pièce d'identité au-dessus d'un seuil, clients habituels, reçu WhatsApp | ✅ |
 | 26 | Carte des kiosques avec liquide | ⏳ Firebase |
-| 27–30 | Cours, quiz et badge, abonnement avec prix réduit dès 3 kiosques, 20 opérations gratuites par jour | ✅ (prix réduit à confirmer) |
-| 31 | Partenariats super-agents | hors appli (codes vendus en lot) |
+| 27–28 | Cours, quiz et badge | ✅ |
+| 29–30 | Abonnement dans l'appli, version gratuite limitée | retiré : le propriétaire encaisse lui-même et active ou suspend les comptes dans son espace admin |
+| 31 | Partenariats super-agents | hors appli |
 | 32–56 | Prévision du liquide, recharges et coût, rappel de reconstitution, échanges et prêts entre agents, seuils, graphique, heures de pointe, retraits annoncés, rapports, export, écart expliqué, correction avec trace, rappel de clôture, relevé opérateur, note de frais, patente, bilan micro-crédit, caisse par employé, écarts par personne, planning, salaires et avances, primes, droits limités | ✅ |
 | 57 | Alerte au patron (opération inhabituelle) | 🟡 signalée dans l'appli et le rapport WhatsApp ; alerte instantanée ⏳ Firebase |
 | 58–64 | Alerte discrète, transport du liquide, service client, plafonds, blanchiment, verrouillage, masquage des numéros | ✅ (plafonds saisis par l'agent) |
@@ -27,7 +28,7 @@
 | 83 | Actualités BCEAO | 🟡 fiches saisies à la main |
 | 84 | Quiz mensuel avec badge | ✅ |
 | 85 | Parrainage | 🟡 partage WhatsApp ; récompense gérée à la main |
-| 86 | Prix à l'année | ✅ codes d'un an (prix à confirmer) |
+| 86 | Prix à l'année | retiré de l'appli (encaissement par le propriétaire) |
 | 87, 88 | Offre super-agent, patron multi-kiosques avec carte | ⏳ Firebase |
 | 89–92 | Publicité locale, micro-finance, assurance, ambassadeurs | hors appli (partenaires à trouver) |
 | 93 | Mode démonstration | ✅ |
@@ -35,3 +36,5 @@
 | 95 | Assistance WhatsApp | ✅ |
 | 96 | Guide vidéo | 🟡 guide écrit ; vidéo à tourner |
 | 97–100 | Notification de fin de journée, calculatrice de frais, réclamations, affiche des tarifs | ✅ |
+
+En plus : espace propriétaire (comptes, chiffres d'utilisation, journal des erreurs, suspension), dès que le projet Firebase est branché.

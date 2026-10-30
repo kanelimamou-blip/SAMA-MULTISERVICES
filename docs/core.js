@@ -8,7 +8,7 @@ const $lock = document.getElementById("lock");
 // ---------- Données (tout est gardé sur le téléphone : l'appli marche sans connexion)
 let KEY = "cahier";
 const DEFAULTS = () => ({
-  v: 2, kiosk: "", ops: [], days: {}, operators: null, users: [], paidUntil: null, usedCodes: [],
+  v: 2, kiosk: "", ops: [], days: {}, operators: null, users: [],
   baremes: {}, fees: {}, seuils: { cash: 0, float: {} }, services: [], stock: [], clients: [],
   annonces: [], rdv: [], reclamations: [], avis: [], epargne: { goal: 0, label: "" }, planning: {},
   contacts: { alerte: "", service: {} }, plafonds: {}, idThreshold: 0, unusual: 0, hours: "", closeAt: "20:00",
@@ -16,7 +16,7 @@ const DEFAULTS = () => ({
 });
 const store = {
   load() { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { return {}; } },
-  save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} if (KEY === "cahier") Sync.save(S); },
+  save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}  },
 };
 let S = Object.assign(DEFAULTS(), store.load());
 function migrate() {
@@ -62,19 +62,15 @@ const TYPES = { depot: "Dépôt", retrait: "Retrait" };
 
 // ---------- Utilisateurs (patron et employés, chacun avec son code)
 let ME = null;
+// Écran imposé avant le cahier : "login", "suspended", "admin" (comptes en ligne), ou null
+let gate = null;
 const me = () => S.users.find((u) => u.id === ME) || S.users[0];
 const isBoss = () => me().role === "patron";
 const userName = (id) => (S.users.find((u) => u.id === id) || { name: "—" }).name;
 function logEvent(ev) { S.log.push({ t: new Date().toISOString(), user: ME, ev }); if (S.log.length > 500) S.log = S.log.slice(-500); store.save(); }
 
-// ---------- Essai et abonnement
-if (!S.trialStart) { S.trialStart = today(); store.save(); }
-const trialLeft = () => Math.max(0, CFG.trial_days - daysBetween(S.trialStart, today()));
-const paidLeft = () => (S.paidUntil ? Math.max(0, daysBetween(today(), S.paidUntil) + 1) : 0);
-const isPremium = () => trialLeft() > 0 || paidLeft() > 0 || KEY !== "cahier";
 const live = (day) => S.ops.filter((o) => o.day === day && !o.cancelled);
 const liveMM = (day) => live(day).filter((o) => o.kind === "mm");
-const canAdd = () => isPremium() || live(today()).length < CFG.free_ops_per_day;
 
 // ---------- Effet de chaque ligne du cahier sur le liquide et sur le solde électronique
 // Dépôt : le client donne du liquide, l'agent envoie de l'électronique -> liquide +, électronique -
@@ -186,6 +182,7 @@ function confirmBox(holder, text, yesLabel, onYes) {
 }
 function needBoss(what) {
   if (isBoss()) return false;
+  Compte.logError({ kind: "refus", message: what });
   $view.innerHTML = `<div class="card"><h2>${t("Réservé au patron")}</h2><p class="muted">${esc(what)}</p><a class="btn alt" href="#accueil">${t("Retour")}</a></div>`;
   return true;
 }
@@ -264,5 +261,5 @@ function lock(onDone = () => render()) {
 }
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") hiddenAt = Date.now();
-  else if (!locked && anyPin() && hiddenAt && Date.now() - hiddenAt > LOCK_AFTER) lock();
+  else if (!gate && !locked && anyPin() && hiddenAt && Date.now() - hiddenAt > LOCK_AFTER) lock();
 });

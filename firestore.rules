@@ -1,0 +1,54 @@
+rules_version = '2';
+// Règles Firestore de Sama Multi Service. À coller dans la console Firebase (Firestore › Règles).
+// ADMIN_UID : l'identifiant Firebase du propriétaire (le même que dans docs/config.js).
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.uid == 'ADMIN_UID'; }
+    function isMe(uid) { return signedIn() && request.auth.uid == uid; }
+    function str(v, n) { return v is string && v.size() <= n; }
+
+    // Fiche de chaque client : il la crée (active), met à jour son nom, son kiosque et sa dernière activité ;
+    // seul le propriétaire lit toutes les fiches et active ou suspend un compte.
+    match /users/{uid} {
+      allow read: if isMe(uid) || isAdmin();
+      allow create: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['name', 'email', 'kiosk', 'created', 'lastActive', 'active'])
+        && str(request.resource.data.name, 60) && str(request.resource.data.email, 100) && str(request.resource.data.kiosk, 60)
+        && request.resource.data.created == request.time && request.resource.data.lastActive == request.time
+        && request.resource.data.active == true;
+      allow update: if (isMe(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'kiosk', 'lastActive'])
+          && request.resource.data.lastActive == request.time
+          && str(request.resource.data.name, 60) && str(request.resource.data.kiosk, 60))
+        || (isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active', 'statusAt'])
+          && request.resource.data.active is bool && request.resource.data.statusAt == request.time);
+      allow delete: if false;
+    }
+
+    // Activité : une ligne par client et par jour (pour les chiffres du jour, de la semaine, du mois)
+    match /activity/{id} {
+      allow read: if isAdmin();
+      allow create, update: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid', 'day', 'at'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.day is string && request.resource.data.day.size() == 10
+        && id == request.auth.uid + '_' + request.resource.data.day
+        && request.resource.data.at == request.time;
+      allow delete: if false;
+    }
+
+    // Journal des erreurs : chaque client écrit les siennes, seul le propriétaire les lit et les efface
+    match /errors/{id} {
+      allow read, delete: if isAdmin();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid', 'kind', 'message', 'where', 'page', 'app', 'ua', 'at'])
+        && request.resource.data.uid == request.auth.uid
+        && str(request.resource.data.kind, 20) && str(request.resource.data.message, 500) && str(request.resource.data.where, 300)
+        && str(request.resource.data.page, 60) && str(request.resource.data.app, 20) && str(request.resource.data.ua, 200)
+        && request.resource.data.at == request.time;
+      allow update: if false;
+    }
+  }
+}

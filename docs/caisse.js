@@ -3,10 +3,7 @@
 
 function trialBanner() {
   if (KEY !== "cahier") return `<div class="banner demo">${t("Mode démonstration : les chiffres sont des exemples.")} <button class="link" id="quitdemo">${t("Quitter")}</button></div>`;
-  if (paidLeft() > 0) return paidLeft() <= 3 ? `<a class="banner" href="#abonnement">${t("Ton abonnement finit dans {n} jour(s).", { n: paidLeft() })}</a>` : "";
-  if (trialLeft() > 0) return `<a class="banner" href="#abonnement">${t("Essai gratuit : tout est débloqué encore {n} jour(s).", { n: trialLeft() })}</a>`;
-  const left = Math.max(0, CFG.free_ops_per_day - live(today()).length);
-  return `<a class="banner warn" href="#abonnement">${t("Essai terminé : {n} opération(s) gratuite(s) restante(s) aujourd'hui. Abonne-toi pour ne plus compter.", { n: left })}</a>`;
+  return "";
 }
 
 // ---------- Alertes de liquide et de solde, prévision, retraits annoncés, rappel de clôture
@@ -141,7 +138,6 @@ function dayReady() {
       <a class="btn" href="#cloture">${t("Voir la clôture")}</a></div>`;
     return false;
   }
-  if (!canAdd()) { viewSub(t("Tu as utilisé tes {n} opérations gratuites d'aujourd'hui.", { n: CFG.free_ops_per_day })); return false; }
   return true;
 }
 function viewEntry(type = "depot", fixId = null) {
