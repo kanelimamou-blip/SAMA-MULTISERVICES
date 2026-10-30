@@ -1,4 +1,4 @@
-# Téere Xaalis
+# Sama Multi Service
 
 Le cahier de caisse des agents de mobile money au Sénégal (kiosques Wave, Orange Money, Free Money, Wizall). L'agent note ses dépôts et retraits ; l'appli recalcule son liquide et son solde électronique par opérateur, fait les totaux du jour et la clôture de caisse du soir. Elle s'installe sur l'écran d'accueil et marche sans connexion.
 
@@ -18,10 +18,10 @@ Voir `IDEES.md` : l'état de chacune des 100 idées. En bref : cahier de caisse 
 
 ## Mise en ligne
 
-1. Créer le dépôt GitHub `teere-xaalis` (public), y pousser ce dossier.
+1. Créer le dépôt GitHub `sama-multi-service` (public), y pousser ce dossier.
 2. Dans le dépôt : Settings › Pages › Source : « GitHub Actions ». Le fichier `.github/workflows/pages.yml` publie `docs/` à chaque modification.
-3. L'appli est alors en ligne sur `https://kanelimamou-blip.github.io/teere-xaalis/`.
+3. L'appli est alors en ligne sur `https://kanelimamou-blip.github.io/sama-multi-service/`.
 
 ## Sauvegarde en ligne (étape suivante)
 
-Créer un projet Firebase gratuit « Teere Xaalis » (comme pour Révision), activer Authentication et Firestore, puis coller la configuration dans `docs/sync.js`. Cela ouvrira : sauvegarde automatique, plusieurs kiosques pour un patron, déconnexion à distance, carte des kiosques, forum.
+Créer un projet Firebase gratuit « Sama Multi Service » (comme pour Révision), activer Authentication et Firestore, puis coller la configuration dans `docs/sync.js`. Cela ouvrira : sauvegarde automatique, plusieurs kiosques pour un patron, déconnexion à distance, carte des kiosques, forum.

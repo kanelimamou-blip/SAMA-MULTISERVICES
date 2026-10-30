@@ -1,4 +1,4 @@
-"""Codes d'abonnement de Téere Xaalis.
+"""Codes d'abonnement de Sama Multi Service.
 
 python outils/codes.py 50          -> ajoute 50 codes d'un mois (31 jours pour un kiosque).
 python outils/codes.py 10 --annee  -> ajoute 10 codes d'un an.

@@ -1,5 +1,5 @@
 "use strict";
-// Téere Xaalis : le cahier de caisse de l'agent de mobile money.
+// Sama Multi Service : le cahier de caisse de l'agent de mobile money.
 // L'appli ne fait aucun transfert, n'est reliée à aucun opérateur et ne demande jamais de code secret d'opérateur.
 // core.js : données, calculs (soldes, commissions, gains), utilisateurs et verrouillage, petits outils d'affichage.
 const $view = document.getElementById("view");
@@ -223,7 +223,7 @@ function lock(onDone = () => render()) {
   const paint = (msg = "") => {
     const u = S.users.find((x) => x.id === who);
     $lock.innerHTML = `<div class="lock-in">
-      <span class="mark big" aria-hidden="true">TX</span>
+      <span class="mark big" aria-hidden="true">SM</span>
       <p><b>${esc(S.kiosk || CFG.name)}</b></p>
       ${!who ? `<p class="muted">${t("Qui ouvre la caisse ?")}</p>
         <div class="who">${S.users.map((x) => `<button type="button" data-who="${x.id}">${esc(x.name)}<small>${x.role === "patron" ? t("Patron") : t("Employé")}</small></button>`).join("")}</div>`

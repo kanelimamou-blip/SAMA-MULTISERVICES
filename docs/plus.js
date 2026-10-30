@@ -245,7 +245,7 @@ function viewAffiche() {
   const amounts = [5000, 10000, 20000, 50000, 100000, 200000];
   const ops = OPS().filter((o) => ["depot", "retrait"].some((k) => ((S.fees[o.id] || {})[k] || []).length));
   $view.innerHTML = `<article class="print poster">
-    <span class="mark big" aria-hidden="true">TX</span>
+    <span class="mark big" aria-hidden="true">SM</span>
     <h1>${esc(S.kiosk || t("Mon kiosque"))}</h1>
     <p>${t("Dépôts et retraits")} : ${OPS().map((o) => esc(o.name)).join(" · ")}</p>
     ${S.hours ? `<p><b>${t("Horaires")}</b> : ${esc(S.hours)}</p>` : ""}
@@ -428,7 +428,7 @@ function viewSettings() {
 function viewSetup() {
   document.body.classList.add("bare");
   $view.innerHTML = `<div class="hero">
-      <span class="mark big" aria-hidden="true">TX</span>
+      <span class="mark big" aria-hidden="true">SM</span>
       <h1>${t("Bienvenue dans {app}", { app: esc(CFG.name) })}</h1>
       <p class="muted">${t("Le cahier de caisse de ton kiosque : tu notes tes dépôts et retraits, l'appli calcule ton liquide, tes soldes et tes gains.")}</p>
     </div>

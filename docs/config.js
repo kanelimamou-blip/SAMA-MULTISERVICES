@@ -1,7 +1,7 @@
 "use strict";
 // Réglages de vente et de l'essai (à modifier ici)
 const CFG = {
-  name: "Téere Xaalis",
+  name: "Sama Multi Service",
   price_fcfa: 1500,          // par mois et par kiosque
   sub_days: 31,              // durée d'un code d'abonnement mensuel
   // À CONFIRMER PAR EST : prix à l'année et prix réduit à partir de 3 kiosques
@@ -21,7 +21,7 @@ const CFG = {
     { id: "wizall", name: "Wizall" },
   ],
   // Codes d'abonnement : seuls les hachages sont publiés (voir outils/codes.py)
-  salt: "tx-2026-a",
+  salt: "sms-2026-a",
   codes: [],       // codes d'un mois
   codes_year: [],  // codes d'un an
 };
