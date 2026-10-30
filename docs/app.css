@@ -228,3 +228,13 @@ details.fiche[open] summary{margin-bottom:8px}
 .op.acct .acts{grid-column:1/3}
 .op.err .what{overflow-wrap:anywhere}
 body.admin main{max-width:880px}
+.stats.four{grid-template-columns:repeat(2,1fr)}
+@media (min-width:600px){.stats.four{grid-template-columns:repeat(4,1fr)}}
+.pill.new{background:var(--surface-2);color:var(--ink)}
+.pill.late{background:var(--out-soft);color:var(--out)}
+.field-in{width:100%;margin:6px 0 10px}
+.rolebar{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 16px;background:var(--accent);color:var(--accent-ink)}
+.rolebar .chip{padding:6px 12px}
+.rolebar .chip[aria-pressed="true"]{background:var(--surface);color:var(--ink);border-color:var(--surface)}
+.rolebar .btn-ghost{margin-left:auto;color:inherit}
+.rolebar[hidden]{display:none}

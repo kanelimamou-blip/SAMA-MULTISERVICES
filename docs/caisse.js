@@ -2,7 +2,7 @@
 // caisse.js : accueil, saisie des opérations, autres lignes du cahier, journal, ouverture, relève et clôture.
 
 function trialBanner() {
-  if (KEY !== "cahier") return `<div class="banner demo">${t("Mode démonstration : les chiffres sont des exemples.")} <button class="link" id="quitdemo">${t("Quitter")}</button></div>`;
+  if (demoOn()) return `<div class="banner demo">${t("Mode démonstration : les chiffres sont des exemples.")} <button class="link" id="quitdemo">${t("Quitter")}</button></div>`;
   return "";
 }
 

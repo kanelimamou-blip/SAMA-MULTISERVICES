@@ -12,16 +12,18 @@ const ROUTES = {
   securite: () => viewSecurite(), alerte: () => viewAlerte(), regles: () => viewRegles(), "journal-acces": () => viewAccessLog(),
   clients: () => viewClients(), file: () => viewQueue(), calcul: () => viewCalc(), affiche: () => viewAffiche(),
   cours: () => viewCours(), quiz: () => viewQuiz(), fiches: () => viewFiches(), compte: () => viewCompte(), admin: () => viewAdmin(), parrainage: () => viewParrainage(),
-  aide: () => viewAide(), reglages: () => viewSettings(), demo: () => (KEY === "cahier" ? enterDemo() : go("accueil")),
+  aide: () => viewAide(), reglages: () => viewSettings(), demo: () => (KEY === "cahier" && !VOIR ? enterDemo() : go("accueil")),
 };
 const TAB_OF = { saisie: "accueil", autre: "accueil", ouverture: "accueil", releve: "accueil", corriger: "journal", cloture: "cloture" };
 function render() {
   if (locked) return;
-  paintTop();
+  paintTop(); paintBar();
   if (gate === "login") return viewLogin();
   if (gate === "suspended") return viewSuspended();
-  if (gate === "admin") return viewAdmin();
   const [page, ...rest] = location.hash.slice(1).split("/"), arg = rest.join("/");
+  if (page === "admin" || (gate === "admin" && !demoOn() && !VOIR)) return viewAdmin();
+  document.body.classList.remove("admin");
+  if (VOIR && (!S.operators || !S.operators.length)) { document.body.classList.add("bare"); $view.innerHTML = `<div class="card"><p>${t("Ce client n'a pas encore réglé son cahier.")}</p></div>`; return; }
   if ((!S.operators || !S.operators.length) && page !== "demo") return viewSetup();
   document.body.classList.remove("bare");
   const tab = TAB_OF[page] || (["accueil", "journal", "cloture"].includes(page) ? page : page ? "plus" : "accueil");
@@ -41,14 +43,24 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.ser
 
 // Démarrage : compte en ligne (si Firebase est configuré), puis le cahier
 function startCahier() { if (!S.operators || !S.operators.length) { ME = S.users[0].id; render(); } else lock(); }
-function afterSignIn(active) {
-  gate = Compte.isAdmin() ? "admin" : active ? null : "suspended";
+function afterSignIn(blocked) {
+  gate = Compte.isAdmin() ? "admin" : blocked ? "suspended" : null;
+  if (gate === "admin" && !demoOn() && location.hash !== "#admin") { history.replaceState(null, "", "#admin"); }
   if (gate) { document.body.classList.add("bare"); return render(); }
   document.body.classList.remove("bare");
-  Compte.flushErrors();
   startCahier();
 }
-function toLogin() { gate = "login"; document.body.classList.remove("admin"); location.hash = ""; render(); }
+// L'admin suspend ou réactive ce compte : l'écran change tout de suite
+function statusChanged(blocked) {
+  if (Compte.isAdmin()) return;
+  if (blocked) { gate = "suspended"; locked = false; $lock.hidden = true; $lock.innerHTML = ""; render(); }
+  else if (gate === "suspended") afterSignIn(false);
+}
+function toLogin() {
+  gate = "login"; VOIR = null; document.body.classList.remove("admin");
+  if (KEY !== "cahier") { KEY = "cahier"; S = Object.assign(DEFAULTS(), store.load()); migrate(); }
+  location.hash = ""; render();
+}
 async function boot() {
   // le mode démonstration survit au rechargement de la page
   try { if (sessionStorage.getItem("demo")) { KEY = "cahier-demo"; S = Object.assign(DEFAULTS(), store.load()); migrate(); } } catch {}
@@ -56,8 +68,8 @@ async function boot() {
   if (!Compte.enabled) return startCahier();
   document.body.classList.add("bare");
   $view.innerHTML = `<p class="muted">${t("Ouverture…")}</p>`;
-  const { user, active } = await Compte.start();
+  const { user, blocked } = await Compte.start(statusChanged);
   if (!user) { gate = "login"; return render(); }
-  afterSignIn(active);
+  afterSignIn(blocked);
 }
 boot();

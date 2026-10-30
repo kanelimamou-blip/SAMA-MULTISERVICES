@@ -352,6 +352,7 @@ function viewSettings() {
   $view.innerHTML = `<h1>${t("Réglages")}</h1>
     <form class="card" id="fk">
       ${textInput("kiosk", S.kiosk, t("Nom du kiosque"), 'maxlength="40"')}
+      <div class="two">${textInput("quartier", S.quartier, t("Quartier"), 'maxlength="40"')}${textInput("tel", phoneFmt(S.tel), t("Téléphone du kiosque"), 'inputmode="tel" maxlength="20"')}</div>
       <fieldset class="field"><legend>${t("Opérateurs que tu proposes")}</legend>
         <div class="checks">${CFG.operators.map((o) => `<label class="check"><input type="checkbox" name="op" value="${o.id}" ${S.operators.includes(o.id) ? "checked" : ""}> ${esc(o.name)}</label>`).join("")}</div></fieldset>
       ${textInput("hours", S.hours, t("Horaires d'ouverture"), 'maxlength="60" placeholder="Lun–Sam 8 h – 21 h"')}
@@ -367,8 +368,7 @@ function viewSettings() {
     e.preventDefault();
     const ops = [...$view.querySelectorAll("input[name=op]:checked")].map((i) => i.value);
     if (!ops.length) return toast(t("Coche au moins un opérateur."));
-    Object.assign(S, { kiosk: val("kiosk").trim(), operators: ops, hours: val("hours").trim(), closeAt: val("closeat") });
-    Compte.setKiosk(S.kiosk);
+    Object.assign(S, { kiosk: val("kiosk").trim(), quartier: val("quartier").trim(), tel: phoneClean(val("tel")), operators: ops, hours: val("hours").trim(), closeAt: val("closeat") });
     store.save(); paintTop(); toast(t("Enregistré."));
   };
   const nb = document.getElementById("notif"); if (nb) nb.onclick = () => Notification.requestPermission().then(() => viewSettings());
@@ -391,6 +391,7 @@ function viewSetup() {
     <form class="card" id="f">
       ${textInput("kiosk", "", t("Nom du kiosque"), `maxlength="40" required placeholder="${t("Ex. Kiosque Médina")}"`)}
       ${textInput("boss", "", t("Ton prénom"), 'maxlength="30"')}
+      <div class="two">${textInput("quartier", "", t("Quartier"), 'maxlength="40"')}${textInput("tel", "", t("Téléphone"), 'inputmode="tel" maxlength="20"')}</div>
       <fieldset class="field"><legend>${t("Opérateurs que tu proposes")}</legend>
         <div class="checks">${CFG.operators.map((o) => `<label class="check"><input type="checkbox" name="op" value="${o.id}" ${o.id === "wave" || o.id === "om" ? "checked" : ""}> ${esc(o.name)}</label>`).join("")}</div></fieldset>
       <fieldset class="field"><legend>${t("Code de l'appli (4 chiffres)")}</legend>
@@ -407,8 +408,7 @@ function viewSetup() {
     const p1 = val("pin1"), p2 = val("pin2");
     if (!ops.length) return fail(t("Coche au moins un opérateur."));
     if (p1 || p2) { if (!/^\d{4}$/.test(p1)) return fail(t("Le code doit avoir 4 chiffres.")); if (p1 !== p2) return fail(t("Les deux codes ne sont pas pareils.")); }
-    S.kiosk = val("kiosk").trim(); S.operators = ops;
-    Compte.setKiosk(S.kiosk);
+    S.kiosk = val("kiosk").trim(); S.quartier = val("quartier").trim(); S.tel = phoneClean(val("tel")); S.operators = ops;
     const boss = S.users[0]; boss.name = val("boss").trim() || t("Patron"); if (p1) boss.pin = await makePin(p1);
     ME = boss.id;
     store.save(); document.body.classList.remove("bare"); go("ouverture");
@@ -457,5 +457,6 @@ function enterDemo() {
 function exitDemo() {
   try { localStorage.removeItem("cahier-demo"); sessionStorage.removeItem("demo"); } catch {}
   KEY = "cahier"; S = Object.assign(DEFAULTS(), store.load()); migrate(); ME = null;
+  if (gate === "admin") { location.hash = "admin"; return render(); }
   location.hash = "accueil"; lock();
 }

@@ -15,7 +15,7 @@ const AUTH_ERRORS = {
 };
 const authMsg = (e) => t(AUTH_ERRORS[e && e.code] || "La connexion n'a pas marché. Réessaie.");
 
-function viewLogin(mode = "create", msg = "") {
+function viewLogin(mode = location.hash === "#admin" ? "login" : "create", msg = "") {
   document.body.classList.add("bare");
   const create = mode === "create";
   $view.innerHTML = `<div class="hero">
@@ -23,7 +23,7 @@ function viewLogin(mode = "create", msg = "") {
       <h1>${esc(CFG.name)}</h1>
       <p class="muted">${t("Le cahier de caisse de ton kiosque. Connecte-toi une fois : ensuite l'appli marche aussi sans connexion.")}</p>
     </div>
-    <div class="card note"><p class="small">${t("Ton cahier (opérations, montants, numéros des clients) reste sur ton téléphone. Ton compte sert seulement à te reconnaître.")}</p></div>
+    <div class="card note"><p class="small">${t("Ton cahier est gardé sur ton téléphone, avec une copie dans ton compte pour le retrouver si tu changes de téléphone. Personne d'autre ne peut le modifier ; l'équipe {app} peut le consulter pour t'aider.", { app: esc(CFG.name) })}</p></div>
     <div class="seg"><button type="button" data-m="create" aria-pressed="${create}">${t("Créer mon compte")}</button><button type="button" data-m="login" aria-pressed="${!create}">${t("J'ai déjà un compte")}</button></div>
     <form class="card" id="f">
       ${create ? textInput("name", "", t("Ton nom"), 'maxlength="60" autocomplete="name" required') : ""}
@@ -36,7 +36,7 @@ function viewLogin(mode = "create", msg = "") {
     <button class="btn alt" id="google">${t("Continuer avec Google")}</button>`;
   $view.querySelectorAll("[data-m]").forEach((b) => b.onclick = () => viewLogin(b.dataset.m));
   const err = document.getElementById("err"), fail = (e) => { err.className = "msg-ko"; err.textContent = typeof e === "string" ? e : authMsg(e); err.hidden = false; };
-  const after = (active) => afterSignIn(active);
+  const after = (blocked) => afterSignIn(blocked);
   document.getElementById("f").onsubmit = async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector("[type=submit]"); btn.disabled = true;
@@ -54,12 +54,13 @@ function viewLogin(mode = "create", msg = "") {
 function viewSuspended() {
   document.body.classList.add("bare");
   $view.innerHTML = `<div class="hero"><span class="mark big" aria-hidden="true">SM</span><h1>${t("Compte suspendu")}</h1>
-      <p class="muted">${t("Ton compte {app} est suspendu pour le moment. Ton cahier est toujours sur ton téléphone, rien n'est perdu.", { app: esc(CFG.name) })}</p></div>
-    <div class="card"><p>${t("Pour le réactiver, écris-nous sur WhatsApp au")} <b class="copy">${esc(phoneFmt(CFG.whatsapp.slice(3)))}</b>.</p>
-      <a class="btn" href="${waLink(CFG.whatsapp.slice(3), t("Bonjour, mon compte {app} est suspendu ({e}).", { app: CFG.name, e: (Compte.user || {}).email || "" }))}" target="_blank" rel="noopener">${t("Écrire sur WhatsApp")}</a>
+      <p id="suspendu">${t("Ton compte est suspendu, contacte l'équipe au {tel}.", { tel: `<b class="copy">${esc(CFG.contact)}</b>` })}</p>
+      <p class="small muted">${t("Ton cahier est toujours sur ton téléphone, rien n'est perdu. Tu pourras de nouveau enregistrer dès que l'équipe réactive ton compte.")}</p></div>
+    <div class="card">
+      <a class="btn" href="${waLink(CFG.whatsapp.slice(3), t("Bonjour, mon compte {app} est suspendu ({k}).", { app: CFG.name, k: S.kiosk || (Compte.user || {}).email || "" }))}" target="_blank" rel="noopener">${t("Écrire à l'équipe sur WhatsApp")}</a>
       <button class="btn alt" id="retry">${t("Réessayer")}</button>
       <button class="link" id="out">${t("Changer de compte")}</button></div>`;
-  document.getElementById("retry").onclick = async () => { const a = await Compte.refreshActive(); if (a) afterSignIn(true); else toast(t("Le compte est toujours suspendu.")); };
+  document.getElementById("retry").onclick = async () => { if (!(await Compte.refresh())) afterSignIn(false); else toast(t("Le compte est toujours suspendu.")); };
   document.getElementById("out").onclick = async () => { await Compte.signOut(); toLogin(); };
 }
 
@@ -70,7 +71,7 @@ function viewCompte() {
     <div class="card"><p class="row"><span>${t("Adresse")}</span><b>${esc(u.email || "—")}</b></p>
       <p class="row"><span>${t("Statut")}</span><b class="good">${t("Actif")}</b></p>
       <p class="small muted">${t("Ton identifiant")} : <span class="copy" id="uid">${esc(u.uid)}</span> <button class="link" id="cpuid">${t("Copier")}</button></p></div>
-    <div class="card note"><p class="small">${t("Ton cahier reste sur ce téléphone. Le compte sert à te reconnaître et à t'aider en cas de problème.")}</p></div>
+    <div class="card note"><p class="small">${t("Ton cahier est gardé sur ce téléphone, avec une copie dans ton compte : si tu changes de téléphone, connecte-toi et il revient. L'équipe peut le consulter pour t'aider, sans pouvoir le modifier.")}</p></div>
     <a class="btn alt" href="#aide">${t("Aide et assistance")}</a>
     <div id="confirm"></div>
     <button class="btn alt" id="out">${t("Me déconnecter")}</button>`;
@@ -78,66 +79,131 @@ function viewCompte() {
   document.getElementById("out").onclick = () => confirmBox(document.getElementById("confirm"), t("Te déconnecter ? Il faudra te reconnecter avec internet pour rouvrir l'appli. Ton cahier reste sur le téléphone."), t("Me déconnecter"), async () => { await Compte.signOut(); toLogin(); });
 }
 
-// ---------- Espace admin du propriétaire
+// ---------- Espace admin (#admin) : tous les kiosques, leur activité, les erreurs ; suspendre ; voir un cahier en lecture seule ; présenter l'appli.
+// Accès : comptes listés dans CFG.admins et dans firestore.rules (fonction admin()), qui protège les lectures et les écritures.
+// Pas de paiement dans l'appli : l'abonnement est encaissé hors de l'appli, rien ne se bloque tout seul.
 const tsDate = (ts) => (ts && ts.toDate ? ts.toDate() : null);
-const ago = (d) => {
-  if (!d) return "—";
-  const days = daysBetween(dayOf(d), today());
-  return days === 0 ? t("aujourd'hui") + " " + timeOf(d.toISOString()) : days === 1 ? t("hier") : t("il y a {n} jours", { n: days });
-};
+const ageDays = (k) => (tsDate(k.created) ? daysBetween(dayOf(tsDate(k.created)), today()) : 0);
+// actif : des opérations notées ces 7 derniers jours
+const kState = (k, a) => k.blocked ? ["Suspendu", "off"] : !a ? ["…", ""] : a.ops > 0 ? ["Actif", "on"] : ageDays(k) < 7 ? ["Nouveau", "new"] : ["Inactif", "late"];
+const FILTERS = [["tous", "Tous"], ["Actif", "Actifs"], ["Nouveau", "Nouveaux"], ["Inactif", "Inactifs"], ["Suspendu", "Suspendus"]];
+
 async function viewAdmin() {
-  if (!Compte.isAdmin()) return go("accueil");
   document.body.classList.add("bare", "admin");
-  $view.innerHTML = `<div class="row"><h1>${t("Espace propriétaire")}</h1><button class="chip" id="reload">${t("Actualiser")}</button></div><p class="muted">${t("Chargement…")}</p>`;
-  document.getElementById("reload").onclick = viewAdmin;
-  let data;
-  try { data = await Compte.adminData(); }
-  catch (e) { $view.innerHTML = `<h1>${t("Espace propriétaire")}</h1><p class="msg-ko">${t("Lecture refusée ou impossible : {m}", { m: esc(e.code || e.message) })}</p><p class="small muted">${t("Vérifie que les règles Firestore contiennent bien ton identifiant.")}</p><button class="btn alt" id="reload">${t("Réessayer")}</button>`; document.getElementById("reload").onclick = viewAdmin; return; }
-  const day = today(), d7 = addDays(day, -6), d30 = addDays(day, -29);
-  const users = data.users.filter((u) => u.id !== ADMIN_UID).sort((a, b) => (tsDate(b.lastActive) || 0) - (tsDate(a.lastActive) || 0));
-  const actives = (from) => new Set(data.activity.filter((a) => a.day >= from && a.uid !== ADMIN_UID).map((a) => a.uid)).size;
-  const newIn = (from) => users.filter((u) => tsDate(u.created) && dayOf(tsDate(u.created)) >= from).length;
-  const daily = []; for (let d = addDays(day, -13); d <= day; d = addDays(d, 1)) daily.push({ l: d.slice(8), v: new Set(data.activity.filter((a) => a.day === d && a.uid !== ADMIN_UID).map((a) => a.uid)).size });
-  const name = (uid) => { const u = data.users.find((x) => x.id === uid); return u ? u.name || u.email || uid : uid; };
-  const filter = viewAdmin.filter || "tous";
-  const shown = users.filter((u) => filter === "tous" || (filter === "suspendus" ? u.active === false : u.active !== false));
-  $view.innerHTML = `<div class="row"><h1>${t("Espace propriétaire")}</h1><button class="chip" id="reload">${t("Actualiser")}</button></div>
-    <div class="stats">
-      <div><span>${t("Comptes")}</span><b>${users.length}</b></div>
-      <div><span>${t("Actifs")}</span><b>${users.filter((u) => u.active !== false).length}</b></div>
-      <div><span>${t("Suspendus")}</span><b>${users.filter((u) => u.active === false).length}</b></div>
+  const back = gate ? "" : `<a class="btn alt" href="#accueil">${t("Retour au cahier")}</a>`;
+  if (!Compte.enabled) { $view.innerHTML = `<h1>${t("Espace admin")}</h1><div class="card"><p>${t("L'espace admin a besoin du projet Firebase : il n'est pas encore branché dans config.js.")}</p></div>${back}`; return; }
+  if (!Compte.user) return viewLogin("login");
+  if (!Compte.isAdmin()) {
+    $view.innerHTML = `<h1>${t("Espace admin")}</h1><div class="card"><p>${t("Ce compte n'est pas encore administrateur.")}</p>
+      <p>${t("Ton identifiant")} : <b class="copy" id="ad-uid">${esc(Compte.user.uid)}</b></p><button class="btn alt" type="button" id="ad-copy">${t("Copier")}</button>
+      <p class="small muted">${t("Il doit être ajouté dans l'appli (config.js, liste admins) et dans les règles Firebase (fonction admin()) pour ouvrir l'espace admin.")}</p></div>${back}`;
+    document.getElementById("ad-copy").onclick = () => copyText(Compte.user.uid);
+    return;
+  }
+  $view.innerHTML = `<h1>${t("Espace admin")}</h1><p class="muted">${t("Chargement…")}</p>`;
+  const since = addDays(today(), -6);
+  let rows, errs, act = {};
+  try {
+    [rows, errs] = await Promise.all([Compte.kiosques(), Compte.errors(Date.now() - 7 * 864e5)]);
+    await Promise.all(rows.map((k) => Compte.activity(k.id, since).then((a) => { act[k.id] = a; }, () => {})));
+  } catch (e) {
+    $view.innerHTML = `<h1>${t("Espace admin")}</h1><p class="msg-ko">${t("Lecture impossible : {m}", { m: esc(e.code || e.message) })}</p><p class="small muted">${t("Vérifie que les règles Firebase contiennent bien ton identifiant.")}</p><button class="btn alt" id="reload">${t("Réessayer")}</button>`;
+    document.getElementById("reload").onclick = viewAdmin; return;
+  }
+  if (!$view.isConnected || gate !== "admin" && location.hash !== "#admin") return;
+  rows.sort((a, b) => (tsDate(b.lastActive) || 0) - (tsDate(a.lastActive) || 0));
+  const st = (k) => kState(k, act[k.id])[0], count = (s) => rows.filter((k) => st(k) === s).length;
+  const names = Object.fromEntries(rows.map((k) => [k.id, k.name || "?"]));
+  let q = viewAdmin.q || "", filter = viewAdmin.filter || "tous";
+  $view.innerHTML = `<div class="row"><h1>${t("Espace admin")}</h1><button class="chip" id="reload">${t("Actualiser")}</button></div>
+    <div class="stats four">
+      <div><span>${t("Inscrits")}</span><b>${rows.length}</b></div>
+      <div><span>${t("Actifs cette semaine")}</span><b>${count("Actif")}</b></div>
+      <div><span>${t("Inactifs")}</span><b>${count("Inactif")}</b></div>
+      <div><span>${t("Erreurs (7 jours)")}</span><b>${errs.length}</b></div>
     </div>
-    <div class="card"><h2>${t("Utilisation")}</h2>
-      <div class="table-wrap"><table class="tot"><thead><tr><th></th><th>${t("Jour")}</th><th>${t("7 jours")}</th><th>${t("30 jours")}</th></tr></thead>
-        <tbody><tr><th>${t("Comptes qui ont ouvert l'appli")}</th><td>${actives(day)}</td><td>${actives(d7)}</td><td>${actives(d30)}</td></tr>
-        <tr><th>${t("Nouveaux comptes")}</th><td>${newIn(day)}</td><td>${newIn(d7)}</td><td>${newIn(d30)}</td></tr></tbody></table></div>
-      <p class="small muted">${t("Comptes actifs par jour, 14 derniers jours")}</p>${bars(daily, { h: 110 })}</div>
-    <div class="card"><div class="row"><h2>${t("Comptes clients")}</h2>
-      <div class="chips">${["tous", "actifs", "suspendus"].map((f) => `<button class="chip" data-f="${f}" aria-pressed="${f === filter}">${t(f[0].toUpperCase() + f.slice(1))}</button>`).join("")}</div></div>
-      ${shown.length ? `<ul class="ops">${shown.map((u) => `<li class="op acct">
-        <span class="what"><b>${esc(u.name || "—")}</b>${u.kiosk ? " · " + esc(u.kiosk) : ""}<br><span class="small muted">${esc(u.email || "")}</span><br>
-          <span class="small">${t("Inscrit le {d}", { d: tsDate(u.created) ? esc(shortDay(dayOf(tsDate(u.created)))) : "—" })} · ${t("dernière activité {a}", { a: esc(ago(tsDate(u.lastActive))) })}</span></span>
-        <span class="pill ${u.active === false ? "off" : "on"}">${u.active === false ? t("Suspendu") : t("Actif")}</span>
-        <span class="acts"><button class="link" data-toggle="${u.id}" data-to="${u.active === false ? "1" : "0"}">${u.active === false ? t("Réactiver") : t("Suspendre")}</button></span></li>`).join("")}</ul>`
-        : `<p class="muted">${t("Aucun compte pour l'instant.")}</p>`}</div>
-    <div class="card"><div class="row"><h2>${t("Journal des erreurs")}</h2><span class="small muted">${t("{n} dernière(s)", { n: data.errors.length })}</span></div>
-      ${data.errors.length ? `<ul class="ops">${data.errors.map((e) => `<li class="op err">
-        <span class="time">${tsDate(e.at) ? timeOf(tsDate(e.at).toISOString()) : "—"}</span>
-        <span class="what"><b class="${e.kind === "plantage" ? "bad" : ""}">${esc(e.kind)}</b> · ${esc(e.message)}<br>
-          <span class="small muted">${esc(name(e.uid))} · ${t("page")} ${esc(e.page)}${e.where ? " · " + esc(e.where) : ""} · ${tsDate(e.at) ? esc(shortDay(dayOf(tsDate(e.at)))) : ""}${e.app ? " · v" + esc(e.app) : ""}</span></span>
-        <span class="acts"><button class="link" data-delerr="${e.id}">${t("Effacer")}</button></span></li>`).join("")}</ul>`
-        : `<p class="muted">${t("Aucune erreur enregistrée.")}</p>`}</div>
+    <div class="card"><h2>${t("Mode présentation")}</h2><p class="small muted">${t("Montre l'appli sur ton seul téléphone, avec des données d'exemple : tu passes de patron à employé avec la barre en haut de l'écran.")}</p>
+      <button class="btn alt" id="ad-demo">${t("Présenter l'appli")}</button></div>
     <div id="confirm"></div>
-    <p class="small muted">${t("Connecté en tant que propriétaire")} : ${esc(Compte.user.email || "")}</p>
+    <div class="card"><h2>${t("Clients")}</h2>
+      <input id="ad-q" class="field-in" placeholder="${t("Chercher un nom, un quartier, un téléphone")}" autocomplete="off" value="${esc(q)}">
+      <div class="chips" id="ad-f">${FILTERS.map(([f, l]) => `<button type="button" class="chip" data-f="${f}">${t(l)}</button>`).join("")}</div>
+      <div id="ad-list"></div>
+      <p class="small muted">${t("Activité = opérations notées ces 7 derniers jours. « Voir » ouvre l'appli comme ce client la voit, en lecture seule : tu peux tout regarder, rien modifier.")}</p></div>
+    <div class="card"><h2>${t("Erreurs des 7 derniers jours")}</h2><div id="ad-err"></div></div>
+    <p class="small muted">${t("Connecté en tant qu'admin")} : ${esc(Compte.user.email || Compte.user.uid)}</p>
     <button class="btn alt" id="out">${t("Me déconnecter")}</button>`;
+  function paint() {
+    $view.querySelectorAll("#ad-f [data-f]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.f === filter));
+    const list = rows.filter((k) => (filter === "tous" || st(k) === filter) && (!q || `${k.name} ${k.quartier} ${k.tel} ${phoneFmt(k.tel)} ${k.id}`.toLowerCase().includes(q.toLowerCase())));
+    document.getElementById("ad-list").innerHTML = list.length ? `<ul class="ops">${list.map((k) => {
+      const a = act[k.id], [s, cls] = kState(k, a), e = errs.filter((x) => x.uid === k.id).length, c = tsDate(k.created);
+      return `<li class="op acct" data-id="${esc(k.id)}">
+        <span class="what"><b>${esc(k.name || "—")}</b><br><span class="small muted">${[k.quartier, phoneFmt(k.tel)].filter(Boolean).map(esc).join(" · ")}${k.quartier || k.tel ? " · " : ""}${t("inscrit le {d}", { d: c ? esc(shortDay(dayOf(c))) : "—" })}</span><br>
+          <span class="small">${a ? t("{n} opération(s) cette semaine", { n: a.ops }) + (a.last ? " · " + t("dernière le {d}", { d: esc(shortDay(a.last)) }) : "") : t("Activité inconnue")}${e ? ` · <b class="bad">${t("{n} erreur(s)", { n: e })}</b>` : ""}</span></span>
+        <span class="pill ${cls}">${t(s)}</span>
+        <span class="acts"><button class="link" data-act="${k.blocked ? "unblock" : "block"}">${k.blocked ? t("Réactiver") : t("Suspendre")}</button>
+          ${k.tel ? `<a class="link" target="_blank" rel="noopener" href="${waLink(k.tel, t("Bonjour, ici l'équipe {app}. ", { app: CFG.name }))}">WhatsApp</a>` : ""}
+          <button class="link" data-act="voir">${t("Voir")}</button></span></li>`;
+    }).join("")}</ul>` : `<p class="muted">${t("Aucun client.")}</p>`;
+    document.getElementById("ad-err").innerHTML = errs.length ? `<ul class="ops">${errs.map((x) => `<li class="op err">
+      <span class="time">${timeOf(new Date(x.at).toISOString())}</span>
+      <span class="what"><b class="${x.kind === "plantage" ? "bad" : ""}">${esc(x.kind)}</b> · ${esc(x.msg)}<br>
+        <span class="small muted">${esc(shortDay(dayOf(new Date(x.at))))} · ${esc(names[x.uid] || x.kiosque || t("compte sans kiosque"))} · ${esc(x.role || "—")}${x.who ? " (" + esc(x.who) + ")" : ""} · ${t("écran")} ${esc(x.route)}<br>${esc(x.ua)}</span></span>
+      <span class="acts"><button class="link" data-er="${esc(x.id)}" aria-label="${t("Effacer l'erreur")}">${t("Effacer")}</button></span></li>`).join("")}</ul>` : `<p class="muted">${t("Aucune erreur. Tout marche.")}</p>`;
+  }
+  paint();
   document.getElementById("reload").onclick = viewAdmin;
-  $view.querySelectorAll("[data-f]").forEach((b) => b.onclick = () => { viewAdmin.filter = b.dataset.f; viewAdmin(); });
-  $view.querySelectorAll("[data-toggle]").forEach((b) => b.onclick = () => {
-    const on = b.dataset.to === "1", who = name(b.dataset.toggle);
-    const run = async () => { try { await Compte.setActive(b.dataset.toggle, on); toast(on ? t("Compte réactivé.") : t("Compte suspendu.")); viewAdmin(); } catch (e) { toast(t("Refusé : {m}", { m: e.code || e.message })); } };
-    if (on) return run();
-    confirmBox(document.getElementById("confirm"), t("Suspendre le compte de {n} ? Il ne pourra plus ouvrir l'appli jusqu'à ce que tu le réactives.", { n: esc(who) }), t("Suspendre"), run);
-  });
-  $view.querySelectorAll("[data-delerr]").forEach((b) => b.onclick = async () => { await Compte.deleteError(b.dataset.delerr).catch(() => {}); b.closest("li").remove(); });
+  document.getElementById("ad-demo").onclick = () => enterDemo();
+  document.getElementById("ad-q").oninput = (e) => { q = viewAdmin.q = e.target.value.trim(); paint(); };
+  document.getElementById("ad-f").onclick = (e) => { const b = e.target.closest("[data-f]"); if (b) { filter = viewAdmin.filter = b.dataset.f; paint(); } };
   document.getElementById("out").onclick = async () => { await Compte.signOut(); toLogin(); };
+  $view.onclick = async (e) => {
+    const er = e.target.closest("[data-er]");
+    if (er) { try { await Compte.removeError(er.dataset.er); errs = errs.filter((x) => x.id !== er.dataset.er); paint(); } catch { toast(t("Effacement refusé.")); } return; }
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const k = rows.find((x) => x.id === b.closest("[data-id]").dataset.id); if (!k) return;
+    if (b.dataset.act === "voir") return openVoir(k);
+    const block = b.dataset.act === "block";
+    const run = async () => {
+      document.getElementById("confirm").innerHTML = "";
+      try { await Compte.setBlocked(k.id, block); k.blocked = block; toast(block ? t("{n} suspendu.", { n: k.name }) : t("{n} réactivé.", { n: k.name })); paint(); }
+      catch { toast(t("Refusé : ce compte n'est pas admin dans les règles Firebase.")); }
+    };
+    if (!block) return run();
+    confirmBox(document.getElementById("confirm"), t("Suspendre {n} ? Il verra « suspendu, contacte l'équipe au {tel} » et ne pourra plus rien enregistrer jusqu'à ce que tu le réactives.", { n: esc(k.name || "ce client"), tel: esc(CFG.contact) }), t("Suspendre"), run);
+  };
+}
+// le $view.onclick de l'espace admin ne doit pas rester sur les autres écrans
+window.addEventListener("hashchange", () => { if (location.hash !== "#admin") $view.onclick = null; });
+
+// ---------- « Voir » : le cahier d'un client, tel qu'il le voit, en lecture seule (rien n'est gardé, et les règles refusent toute écriture de l'admin)
+async function openVoir(k) {
+  let s;
+  try { s = await Compte.loadCahier(k.id); } catch (e) { return toast(t("Lecture impossible : {m}", { m: e.code || e.message })); }
+  VOIR = { id: k.id, name: k.name || "?" }; KEY = null; store.warned = false;
+  S = s; migrate();
+  ME = (S.users.find((u) => u.role === "patron") || S.users[0]).id;
+  go("accueil");
+}
+function closeVoir() {
+  VOIR = null; KEY = "cahier"; S = Object.assign(DEFAULTS(), store.load()); migrate(); ME = null;
+  go("admin");
+}
+
+// Barre du haut en mode présentation ou « Voir » : changer de rôle sur un seul téléphone
+function paintBar() {
+  const bar = document.getElementById("rolebar"), on = demoOn() || !!VOIR;
+  bar.hidden = !on;
+  if (!on) return;
+  const cur = me().role;
+  bar.innerHTML = `<span class="small">${VOIR ? t("Vue de {n} · lecture seule", { n: `<b>${esc(VOIR.name)}</b>` }) : t("Présentation")}</span>
+    ${[["patron", "Patron"], ["employe", "Employé"]].map(([r, l]) => `<button type="button" class="chip" data-role="${r}" aria-pressed="${cur === r}" ${S.users.some((u) => u.role === r) ? "" : "disabled"}>${t(l)}</button>`).join("")}
+    <button type="button" class="btn-ghost" data-role="fin" aria-label="${t("Quitter")}">✕</button>`;
+  bar.onclick = (e) => {
+    const b = e.target.closest("[data-role]"); if (!b) return;
+    if (b.dataset.role === "fin") return VOIR ? closeVoir() : exitDemo();
+    ME = S.users.find((u) => u.role === b.dataset.role).id;
+    render();
+  };
 }

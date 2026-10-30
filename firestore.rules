@@ -1,53 +1,55 @@
 rules_version = '2';
 // Règles Firestore de Sama Multi Service. À coller dans la console Firebase (Firestore › Règles).
-// ADMIN_UID : l'identifiant Firebase du propriétaire (le même que dans docs/config.js).
+// admin() : mets entre les crochets l'identifiant (UID) du compte admin, affiché sur la page #admin de l'appli,
+// par exemple ['AbC123…']. Le même identifiant va dans docs/config.js (liste admins).
 service cloud.firestore {
   match /databases/{db}/documents {
-    function signedIn() { return request.auth != null; }
-    function isAdmin() { return signedIn() && request.auth.uid == 'ADMIN_UID'; }
-    function isMe(uid) { return signedIn() && request.auth.uid == uid; }
+    function signed() { return request.auth != null; }
+    function admin() { return signed() && request.auth.uid in []; }
+    function me(uid) { return signed() && request.auth.uid == uid; }
     function str(v, n) { return v is string && v.size() <= n; }
+    // un kiosque suspendu par l'admin n'enregistre plus rien, même en contournant l'appli
+    function open(uid) { return get(/databases/$(db)/documents/kiosques/$(uid)).data.get('blocked', false) != true; }
 
-    // Fiche de chaque client : il la crée (active), met à jour son nom, son kiosque et sa dernière activité ;
-    // seul le propriétaire lit toutes les fiches et active ou suspend un compte.
-    match /users/{uid} {
-      allow read: if isMe(uid) || isAdmin();
-      allow create: if isMe(uid)
-        && request.resource.data.keys().hasOnly(['name', 'email', 'kiosk', 'created', 'lastActive', 'active'])
-        && str(request.resource.data.name, 60) && str(request.resource.data.email, 100) && str(request.resource.data.kiosk, 60)
-        && request.resource.data.created == request.time && request.resource.data.lastActive == request.time
-        && request.resource.data.active == true;
-      allow update: if (isMe(uid)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'kiosk', 'lastActive'])
+    // Fiche de chaque kiosque (un compte = un kiosque). L'admin lit tout ; il ne change que « blocked ».
+    // Le client ne peut ni se suspendre, ni se réactiver, ni changer sa date d'inscription.
+    match /kiosques/{uid} {
+      allow read: if me(uid) || admin();
+      allow create: if me(uid)
+        && request.resource.data.keys().hasOnly(['name', 'quartier', 'tel', 'owner', 'created', 'lastActive'])
+        && request.resource.data.owner == uid
+        && str(request.resource.data.name, 60) && str(request.resource.data.quartier, 60) && str(request.resource.data.tel, 20)
+        && request.resource.data.created == request.time && request.resource.data.lastActive == request.time;
+      allow update: if (me(uid) && resource.data.get('blocked', false) != true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'quartier', 'tel', 'lastActive'])
           && request.resource.data.lastActive == request.time
-          && str(request.resource.data.name, 60) && str(request.resource.data.kiosk, 60))
-        || (isAdmin()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active', 'statusAt'])
-          && request.resource.data.active is bool && request.resource.data.statusAt == request.time);
+          && str(request.resource.data.name, 60) && str(request.resource.data.quartier, 60) && str(request.resource.data.tel, 20))
+        || (admin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked'])
+          && request.resource.data.blocked is bool);
       allow delete: if false;
+
+      // Copie du cahier : « base » (réglages, équipe…) et un document par jour (opérations, ouverture et clôture).
+      // L'admin la lit (« Voir » le client) mais ne peut rien y écrire.
+      match /cahier/{doc} {
+        allow read: if me(uid) || admin();
+        allow create, update: if me(uid) && open(uid)
+          && (doc == 'base' || (doc.matches('j_[0-9]{4}-[0-9]{2}-[0-9]{2}') && request.resource.data.day == doc[2:]))
+          && request.resource.data.keys().hasOnly(['day', 'n', 'json', 'at'])
+          && str(request.resource.data.json, 900000) && request.resource.data.at == request.time;
+        allow delete: if me(uid) && open(uid);
+      }
     }
 
-    // Activité : une ligne par client et par jour (pour les chiffres du jour, de la semaine, du mois)
-    match /activity/{id} {
-      allow read: if isAdmin();
-      allow create, update: if signedIn()
-        && request.resource.data.keys().hasOnly(['uid', 'day', 'at'])
+    // Erreurs remontées par les téléphones (plantage, écriture refusée) : chacun envoie les siennes, seul l'admin les lit et les efface
+    match /erreurs/{id} {
+      allow create: if signed()
+        && request.resource.data.keys().hasOnly(['uid', 'kind', 'msg', 'route', 'role', 'who', 'kiosque', 'ua', 'app', 'at'])
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.day is string && request.resource.data.day.size() == 10
-        && id == request.auth.uid + '_' + request.resource.data.day
-        && request.resource.data.at == request.time;
-      allow delete: if false;
-    }
-
-    // Journal des erreurs : chaque client écrit les siennes, seul le propriétaire les lit et les efface
-    match /errors/{id} {
-      allow read, delete: if isAdmin();
-      allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['uid', 'kind', 'message', 'where', 'page', 'app', 'ua', 'at'])
-        && request.resource.data.uid == request.auth.uid
-        && str(request.resource.data.kind, 20) && str(request.resource.data.message, 500) && str(request.resource.data.where, 300)
-        && str(request.resource.data.page, 60) && str(request.resource.data.app, 20) && str(request.resource.data.ua, 200)
-        && request.resource.data.at == request.time;
+        && str(request.resource.data.kind, 20) && str(request.resource.data.msg, 500) && str(request.resource.data.route, 60)
+        && str(request.resource.data.role, 20) && str(request.resource.data.who, 40) && str(request.resource.data.kiosque, 60)
+        && str(request.resource.data.ua, 200) && str(request.resource.data.app, 20) && request.resource.data.at is int;
+      allow read, delete: if admin();
       allow update: if false;
     }
   }

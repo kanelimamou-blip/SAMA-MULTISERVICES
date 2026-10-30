@@ -8,15 +8,15 @@ Le cahier de caisse des agents de mobile money au Sénégal (kiosques Wave, Oran
 
 Voir `IDEES.md` : l'état de chacune des 100 idées. En bref : cahier de caisse (dépôts, retraits, soldes, clôture avec écart expliqué), commissions et bénéfice, float (alertes, prévision, recharges, prêts), services et stock, rapports (WhatsApp, mois, export, micro-crédit), employés, sécurité, clients, formation, mode démonstration.
 
-Pas de paiement dans l'appli : le propriétaire encaisse lui-même et active ou suspend les comptes depuis son espace admin.
+Pas de paiement dans l'appli et aucun blocage automatique : le propriétaire encaisse les abonnements lui-même, hors de l'appli, et suspend ou réactive un client depuis l'espace admin.
 
 ## Fichiers
 
 - `docs/` : l'appli (HTML/JS sans dépendance, polices du téléphone, environ 150 Ko), publiée sur GitHub Pages à chaque modification de `main`.
-  `core.js` (données et calculs), `compte.js` (comptes Firebase, activité, journal des erreurs), `caisse.js` (caisse, journal, clôture), `gestion.js` (gains, float, services, rapports), `plus.js` (équipe, sécurité, clients, formation, réglages, démo), `admin.js` (connexion, compte suspendu, espace propriétaire), `app.js` (navigation et démarrage).
-- `docs/config.js` : nom, numéro WhatsApp d'assistance, opérateurs, configuration Firebase et identifiant du propriétaire (`ADMIN_UID`).
+  `core.js` (données et calculs), `compte.js` (comptes Firebase, copie en ligne du cahier, suspension, erreurs), `caisse.js` (caisse, journal, clôture), `gestion.js` (gains, float, services, rapports), `plus.js` (équipe, sécurité, clients, formation, réglages, démo), `admin.js` (connexion, compte suspendu, espace admin, « Voir », barre de rôles), `app.js` (navigation et démarrage).
+- `docs/config.js` : nom, numéro WhatsApp d'assistance, opérateurs, numéro affiché aux clients suspendus (`contact`), liste `admins` (UID Firebase des comptes admin, jamais d'e-mail), configuration Firebase.
 - `docs/i18n.js` : textes. Pour le wolof, remplir `WO` avec « phrase française » : « traduction ».
-- `firestore.rules` : règles Firestore (remplacer `ADMIN_UID` par l'identifiant du propriétaire avant de les coller dans la console).
+- `firestore.rules` : règles Firestore (mettre l'UID de l'admin dans la fonction `admin()` : `request.auth.uid in ['UID']`, puis coller dans la console).
 - `tests/` : tests des règles et parcours complet dans un navigateur, avec les émulateurs Firebase.
 
 ## Mise en ligne
@@ -25,11 +25,19 @@ Pas de paiement dans l'appli : le propriétaire encaisse lui-même et active ou 
 2. Dans le dépôt : Settings › Pages › Source : « GitHub Actions ». Le fichier `.github/workflows/pages.yml` publie `docs/` à chaque modification.
 3. L'appli est alors en ligne sur `https://kanelimamou-blip.github.io/SAMA-MULTISERVICES/`.
 
-## Comptes et espace propriétaire
+## Comptes et espace admin
 
-Quand `FIREBASE_CONFIG` est rempli, chaque client crée un compte (e-mail ou Google) à la première ouverture ; ensuite l'appli marche aussi sans connexion. Le cahier reste sur le téléphone : seuls le nom, l'e-mail, le nom du kiosque, les dates d'inscription et d'activité, et les erreurs vont dans Firestore.
+Quand `FIREBASE_CONFIG` est rempli, chaque client crée un compte (e-mail ou Google) à la première ouverture ; ensuite l'appli marche aussi sans connexion. Un compte = un kiosque : fiche `kiosques/{uid}` (nom, quartier, téléphone, inscription, dernière activité, `blocked`) et copie du cahier dans `kiosques/{uid}/cahier` (un document `base` et un par jour). Sur un nouveau téléphone, le client se connecte et retrouve son cahier. Les codes à 4 chiffres ne partent pas en ligne.
 
-Le compte dont l'identifiant est `ADMIN_UID` ouvre directement l'espace propriétaire : liste des comptes (inscription, dernière activité, actif ou suspendu), chiffres d'utilisation (jour, 7 jours, 30 jours), journal des erreurs (plantages et actions refusées : quel compte, quelle page, quand), et bouton pour suspendre ou réactiver un compte. Les règles Firestore refusent ces lectures à tout autre compte.
+Page `#admin` :
+- pas connecté : connexion Google ou e-mail ; connecté mais pas admin : l'UID du compte, avec « Copier » ;
+- chiffres : inscrits, actifs cette semaine, inactifs, erreurs des 7 derniers jours ;
+- clients : nom, quartier, téléphone, inscription, opérations des 7 derniers jours, état (Actif, Nouveau, Inactif, Suspendu), recherche et filtres ;
+- par client : Suspendre/Réactiver, WhatsApp, « Voir » (l'appli comme le client la voit, en patron ou en employé, en lecture seule) ;
+- erreurs (`erreurs`) : plantages et écritures refusées, au plus 5 par visite, avec message, écran, client, rôle et téléphone ; l'admin les efface ;
+- mode présentation : données d'exemple et barre du haut pour passer de patron à employé.
+
+Les règles Firestore font la sécurité : seul l'admin lit la liste, les cahiers et les erreurs ; il ne peut modifier que `blocked`. Un kiosque suspendu voit « suspendu, contacte l'équipe au 78 272 19 20 » et les règles refusent toutes ses écritures, même en contournant l'appli ; il ne peut pas se réactiver.
 
 ## Tests
 

@@ -8,7 +8,7 @@ const $lock = document.getElementById("lock");
 // ---------- Données (tout est gardé sur le téléphone : l'appli marche sans connexion)
 let KEY = "cahier";
 const DEFAULTS = () => ({
-  v: 2, kiosk: "", ops: [], days: {}, operators: null, users: [],
+  v: 2, kiosk: "", quartier: "", tel: "", ops: [], days: {}, operators: null, users: [],
   baremes: {}, fees: {}, seuils: { cash: 0, float: {} }, services: [], stock: [], clients: [],
   annonces: [], rdv: [], reclamations: [], avis: [], epargne: { goal: 0, label: "" }, planning: {},
   contacts: { alerte: "", service: {} }, plafonds: {}, idThreshold: 0, unusual: 0, hours: "", closeAt: "20:00",
@@ -16,7 +16,12 @@ const DEFAULTS = () => ({
 });
 const store = {
   load() { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { return {}; } },
-  save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}  },
+  save() {
+    // « Voir » un client depuis l'espace admin : lecture seule, rien n'est gardé ni envoyé
+    if (!KEY) { if (!store.warned) toast(t("Lecture seule : rien n'est enregistré.")); store.warned = true; return; }
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}
+    if (KEY === "cahier") Compte.dirty();
+  },
 };
 let S = Object.assign(DEFAULTS(), store.load());
 function migrate() {
@@ -64,6 +69,9 @@ const TYPES = { depot: "Dépôt", retrait: "Retrait" };
 let ME = null;
 // Écran imposé avant le cahier : "login", "suspended", "admin" (comptes en ligne), ou null
 let gate = null;
+// Espace admin : cahier d'un client ouvert en lecture seule ({ id, name }), ou null
+let VOIR = null;
+const demoOn = () => KEY === "cahier-demo";
 const me = () => S.users.find((u) => u.id === ME) || S.users[0];
 const isBoss = () => me().role === "patron";
 const userName = (id) => (S.users.find((u) => u.id === id) || { name: "—" }).name;
@@ -182,7 +190,6 @@ function confirmBox(holder, text, yesLabel, onYes) {
 }
 function needBoss(what) {
   if (isBoss()) return false;
-  Compte.logError({ kind: "refus", message: what });
   $view.innerHTML = `<div class="card"><h2>${t("Réservé au patron")}</h2><p class="muted">${esc(what)}</p><a class="btn alt" href="#accueil">${t("Retour")}</a></div>`;
   return true;
 }
