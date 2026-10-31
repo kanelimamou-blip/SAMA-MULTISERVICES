@@ -114,6 +114,10 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   await ad.fill("#ad-q", ""); await ad.click('[data-f="Nouveau"]');
   assert.ok((await ad.textContent("#ad-list")).includes("Modou Fall") && !(await ad.textContent("#ad-list")).includes("Kiosque Médina"));
   await ad.click('[data-f="tous"]');
+  // prix cachés par défaut (démos libres), réaffichés par l'interrupteur
+  assert.strictEqual(await ad.$("[data-pay]"), null);
+  assert.ok(!(await ad.textContent("#ad-list")).includes("Abonnement"));
+  await ad.check("#ad-prix"); await ad.waitForSelector("[data-pay]");
   // suivi des encaissements : essai gratuit, payé ce mois, tarif, repères du 5 et du 10
   assert.ok((await ad.textContent(`#ad-list li:has-text("Kiosque Médina") [data-pay]`)).includes("Essai gratuit"));
   await ad.click(`#ad-list li:has-text("Kiosque Médina") [data-act="paid"]`); await ad.waitForTimeout(400);
@@ -122,6 +126,9 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   const repères = await ad.evaluate(() => { const old = { created: { toDate: () => new Date(2026, 0, 1) } };
     return [payState(old, "2026-11-03")[0], payState(old, "2026-11-06")[0], payState(old, "2026-11-12")[0], payState({ ...old, payeMois: "2026-11" }, "2026-11-12")[0]]; });
   assert.deepStrictEqual(repères, ["À encaisser", "À relancer", "À suspendre ?", "Payé"]);
+  await ad.uncheck("#ad-prix"); await ad.waitForSelector(".kpis"); await ad.waitForTimeout(300);
+  assert.strictEqual(await ad.$("[data-pay]"), null);
+  step("admin : prix et abonnement cachés pour les démos, réaffichés d'un geste");
   step("admin : encaissement noté (payé ce mois, tarif), repères à relancer le 5 et à suspendre le 10, sans blocage automatique");
   step("admin : 2 inscrits, 1 actif, 0 inactif, 5 erreurs (plafond par visite) ; recherche, filtres, WhatsApp");
   // une erreur effacée

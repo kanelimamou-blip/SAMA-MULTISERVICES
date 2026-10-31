@@ -101,9 +101,12 @@ function qrSvg(text, size = 220) {
   for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${c + m},${r + m}h1v1h-1z`;
   return `<svg class="qr" viewBox="0 0 ${s} ${s}" width="${size}" height="${size}" role="img" aria-label="QR code"><rect width="${s}" height="${s}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
 }
-const FILTERS = [["tous", "Tous"], ["Actif", "Actifs"], ["Nouveau", "Nouveaux"], ["Inactif", "Inactifs"], ["Suspendu", "Suspendus"], ["pay:À relancer", "À relancer"], ["pay:À suspendre ?", "À suspendre ?"]];
+const FILTERS = [["tous", "Tous"], ["Actif", "Actifs"], ["Nouveau", "Nouveaux"], ["Inactif", "Inactifs"], ["Suspendu", "Suspendus"]];
+const PAY_FILTERS = [["pay:À relancer", "À relancer"], ["pay:À suspendre ?", "À suspendre ?"]];
 // Suivi des encaissements (l'argent est encaissé hors de l'appli) : payé ce mois, essai gratuit de 14 jours,
 // à relancer à partir du 5, à suspendre à partir du 10. Ce ne sont que des repères : la suspension reste un clic de l'admin.
+// Pendant les démos, les prix et l'abonnement restent cachés ; un interrupteur en bas de l'espace admin les réaffiche (réglage de ce téléphone)
+const showPrix = () => { try { return localStorage.getItem("sama-prix") === "1"; } catch { return false; } };
 const tarifOf = (k) => k.tarif || CFG.tarif;
 function payState(k, day = today()) {
   const dom = +day.slice(8);
@@ -136,7 +139,8 @@ async function viewAdmin() {
     await Promise.all(rows.map((k) => Compte.activity(k.id, since).then((a) => { act[k.id] = a; }, () => {})));
   } catch (e) {
     $view.innerHTML = `<h1>${t("Espace admin")}</h1><p class="msg-ko">${t("Lecture impossible : {m}", { m: esc(e.code || e.message) })}</p><p class="small muted">${t("Vérifie que les règles Firebase contiennent bien ton identifiant.")}</p><button class="btn alt" id="reload">${t("Réessayer")}</button>`;
-    document.getElementById("reload").onclick = viewAdmin; return;
+    document.getElementById("ad-prix").onchange = (e) => { try { localStorage.setItem("sama-prix", e.target.checked ? "1" : "0"); } catch {} if (!e.target.checked && filter.startsWith("pay:")) filter = viewAdmin.filter = "tous"; viewAdmin(); };
+  document.getElementById("reload").onclick = viewAdmin; return;
   }
   if (!$view.isConnected || gate !== "admin" && location.hash !== "#admin") return;
   rows.sort((a, b) => (tsDate(b.lastActive) || 0) - (tsDate(a.lastActive) || 0));
@@ -164,10 +168,12 @@ async function viewAdmin() {
     <div class="tabs2"><button type="button" data-tab="kiosques" id="tab-k"></button><button type="button" data-tab="erreurs" id="tab-e"></button></div>
     <div class="card" id="pane-kiosques">
       <input id="ad-q" class="field-in" placeholder="${t("Chercher un nom, un quartier, un téléphone")}" autocomplete="off" value="${esc(q)}">
-      <div class="chips" id="ad-f">${FILTERS.map(([f, l]) => `<button type="button" class="chip" data-f="${f}">${t(l)}</button>`).join("")}</div>
+      <div class="chips" id="ad-f">${[...FILTERS, ...(showPrix() ? PAY_FILTERS : [])].map(([f, l]) => `<button type="button" class="chip" data-f="${f}">${t(l)}</button>`).join("")}</div>
       <div id="ad-list"></div>
       <p class="small muted">${t("Activité = opérations notées ces 7 derniers jours. « Voir » ouvre l'appli comme ce patron la voit, en lecture seule : tu peux tout regarder, rien modifier.")}</p></div>
     <div class="card" id="pane-erreurs"><div id="ad-err"></div></div>
+    <label class="check prix-switch"><input type="checkbox" id="ad-prix" ${showPrix() ? "checked" : ""}> ${t("Afficher les prix et l'abonnement")}</label>
+    <p class="small muted">${t("Caché pendant les démos libres. Coche quand tu parles des conditions : tarifs, « payé le », relances.")}</p>
     <p class="small muted">${t("Connecté en tant qu'admin")} : ${esc(Compte.user.email || Compte.user.uid)}</p>
     <button class="btn alt" id="out">${t("Me déconnecter")}</button>`;
   const inv = document.getElementById("ad-inv-open");
@@ -187,11 +193,11 @@ async function viewAdmin() {
       return `<li class="op acct" data-id="${esc(k.id)}">
         <span class="what"><b>${esc(k.name || "—")}</b><br><span class="small muted">${[k.quartier, phoneFmt(k.tel)].filter(Boolean).map(esc).join(" · ")}${k.quartier || k.tel ? " · " : ""}${t("inscrit le {d}", { d: c ? esc(shortDay(dayOf(c))) : "—" })}</span><br>
           <span class="small">${a ? t("{n} opération(s) cette semaine", { n: a.ops }) + (a.last ? " · " + t("dernière le {d}", { d: esc(shortDay(a.last)) }) : "") : t("Activité inconnue")}${e ? ` · <b class="bad">${t("{n} erreur(s)", { n: e })}</b>` : ""}</span><br>
-          <span class="small pay">${t("Abonnement")} <input class="tarif" data-tarif inputmode="numeric" value="${tarifOf(k)}" aria-label="${t("Tarif mensuel")}"> F · ${k.payeLe ? t("payé le {d}", { d: esc(shortDay(k.payeLe)) }) : t("jamais payé")}
-            · <span class="pill ${payState(k)[1]}" data-pay>${t(payState(k)[0])}</span></span></span>
+          ${showPrix() ? `<span class="small pay">${t("Abonnement")} <input class="tarif" data-tarif inputmode="numeric" value="${tarifOf(k)}" aria-label="${t("Tarif mensuel")}"> F · ${k.payeLe ? t("payé le {d}", { d: esc(shortDay(k.payeLe)) }) : t("jamais payé")}
+            · <span class="pill ${payState(k)[1]}" data-pay>${t(payState(k)[0])}</span></span>` : ""}</span>
         <span class="pill ${cls}">${t(s)}</span>
-        <span class="acts">${payState(k)[0] !== "Payé" ? `<button class="link" data-act="paid">${t("Payé ce mois")}</button>` : ""}
-          ${k.tel && ["À relancer", "À suspendre ?"].includes(payState(k)[0]) ? `<a class="link" data-relance target="_blank" rel="noopener" href="${waLink(k.tel, relanceText(k))}">${t("Relancer")}</a>` : ""}
+        <span class="acts">${showPrix() && payState(k)[0] !== "Payé" ? `<button class="link" data-act="paid">${t("Payé ce mois")}</button>` : ""}
+          ${showPrix() && k.tel && ["À relancer", "À suspendre ?"].includes(payState(k)[0]) ? `<a class="link" data-relance target="_blank" rel="noopener" href="${waLink(k.tel, relanceText(k))}">${t("Relancer")}</a>` : ""}
           <button class="link" data-act="${k.blocked ? "unblock" : "block"}">${k.blocked ? t("Réactiver") : t("Suspendre")}</button>
           ${k.tel ? `<a class="link" target="_blank" rel="noopener" href="${waLink(k.tel, t("Bonjour, ici l'équipe {app}. ", { app: CFG.name }))}">WhatsApp</a>` : ""}
           <button class="link" data-act="voir">${t("Voir")}</button></span></li>`;
@@ -237,6 +243,7 @@ async function viewAdmin() {
     if (b.dataset.iv === "qr") return showInvite(inv);
     try { await Compte.removeInvite(inv.id); invs = invs.filter((i) => i !== inv); document.getElementById("ad-inv-show").innerHTML = ""; paintInvites(); } catch { toast(t("Suppression refusée.")); }
   };
+  document.getElementById("ad-prix").onchange = (e) => { try { localStorage.setItem("sama-prix", e.target.checked ? "1" : "0"); } catch {} if (!e.target.checked && filter.startsWith("pay:")) filter = viewAdmin.filter = "tous"; viewAdmin(); };
   document.getElementById("reload").onclick = viewAdmin;
   document.getElementById("ad-demo").onclick = () => enterDemo();
   document.getElementById("ad-q").oninput = (e) => { q = viewAdmin.q = e.target.value.trim(); paint(); };

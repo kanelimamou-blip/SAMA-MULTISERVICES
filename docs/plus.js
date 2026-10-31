@@ -334,7 +334,7 @@ function viewFiches() {
 
 function viewParrainage() {
   const url = location.href.split("#")[0];
-  const text = t("J'utilise {app} pour tenir la caisse de mon kiosque : dépôts, retraits, liquide, commissions et clôture du soir. 10 jours gratuits, sans connexion. Essaie : {u}", { app: CFG.name, u: url });
+  const text = t("J'utilise {app} pour tenir la caisse de mon kiosque : dépôts, retraits, liquide, commissions et clôture du soir. Elle marche même sans connexion. Essaie : {u}", { app: CFG.name, u: url });
   $view.innerHTML = `<h1>${t("Parrainer un agent")}</h1>
     <div class="card"><p>${t("Partage l'appli avec un agent de ton quartier. Dis-lui de donner le nom de ton kiosque quand il s'abonne.")}</p>
     <pre class="report">${esc(text)}</pre>
