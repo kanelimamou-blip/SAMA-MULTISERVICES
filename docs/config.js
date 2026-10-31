@@ -11,7 +11,7 @@ const CFG = {
   tarif: 3000,
   // comptes qui ouvrent l'espace admin (#admin) : identifiants Firebase (UID), jamais d'e-mail.
   // Le même identifiant va dans firestore.rules, fonction admin().
-  admins: [],
+  admins: ["gW4JN15kVTSz78g5JOexD9mZUX13"],
   // Opérateurs proposés (l'agent coche ceux qu'il utilise). Noms écrits en texte seulement, sans logo.
   operators: [
     { id: "wave", name: "Wave" },

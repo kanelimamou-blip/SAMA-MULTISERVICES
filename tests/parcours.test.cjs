@@ -16,12 +16,12 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
 (async () => {
   // 1. compte admin, et son identifiant dans les règles et dans config.js (jamais son e-mail)
   const est = await post(`${AUTH}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake`, { email: "admin@exemple.sn", password: "secret123", returnSecureToken: true });
-  const rules = fs.readFileSync(path.join(__dirname, "..", "firestore.rules"), "utf8").replace("request.auth.uid in []", `request.auth.uid in ['${est.localId}']`);
+  const rules = fs.readFileSync(path.join(__dirname, "..", "firestore.rules"), "utf8").replace(/request.auth.uid in \[[^\]]*\]/, `request.auth.uid in ['${est.localId}']`);
   await post(`${FS}/emulator/v1/projects/${PROJECT}:securityRules`, { rules: { files: [{ content: rules }] } }, "PUT");
   // 2. l'appli, avec une configuration de test (projet « demo- » => émulateurs) et le SDK Firebase local
   const config = fs.readFileSync(path.join(DOCS, "config.js"), "utf8")
     .replace(/const FIREBASE_CONFIG = (null|\{[^}]*\});/, `const FIREBASE_CONFIG = { apiKey: "fake", authDomain: "localhost", projectId: "${PROJECT}", appId: "test" };`)
-    .replace("admins: [],", `admins: ["${est.localId}"],`);
+    .replace(/admins: \[[^\]]*\],/, `admins: ["${est.localId}"],`);
   assert.ok(config.includes(est.localId));
   const server = http.createServer((req, res) => {
     const u = decodeURIComponent(req.url.split("?")[0]);

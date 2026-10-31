@@ -8,7 +8,7 @@ const { doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, collection, getDocs, 
 
 const ADMIN = "proprietaire-uid";
 (async () => {
-  const rules = fs.readFileSync(path.join(__dirname, "..", "firestore.rules"), "utf8").replace("request.auth.uid in []", `request.auth.uid in ['${ADMIN}']`);
+  const rules = fs.readFileSync(path.join(__dirname, "..", "firestore.rules"), "utf8").replace(/request.auth.uid in \[[^\]]*\]/, `request.auth.uid in ['${ADMIN}']`);
   assert.ok(rules.includes(ADMIN), "identifiant admin placé dans admin()");
   const env = await initializeTestEnvironment({ projectId: "demo-sms-regles", firestore: { rules, host: "127.0.0.1", port: 8080 } });
   const alice = env.authenticatedContext("alice").firestore();

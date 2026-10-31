@@ -5,7 +5,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
     function signed() { return request.auth != null; }
-    function admin() { return signed() && request.auth.uid in []; }
+    function admin() { return signed() && request.auth.uid in ['gW4JN15kVTSz78g5JOexD9mZUX13']; }
     function me(uid) { return signed() && request.auth.uid == uid; }
     function str(v, n) { return v is string && v.size() <= n; }
     // un kiosque suspendu par l'admin n'enregistre plus rien, même en contournant l'appli
