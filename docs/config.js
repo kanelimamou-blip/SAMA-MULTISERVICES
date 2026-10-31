@@ -7,6 +7,8 @@ const CFG = {
   whatsapp: "221782721920",
   // numéro affiché aux clients suspendus
   contact: "78 272 19 20",
+  // tarif mensuel par défaut d'un kiosque (encaissé hors de l'appli ; modifiable par kiosque dans l'espace admin)
+  tarif: 3000,
   // comptes qui ouvrent l'espace admin (#admin) : identifiants Firebase (UID), jamais d'e-mail.
   // Le même identifiant va dans firestore.rules, fonction admin().
   admins: [],

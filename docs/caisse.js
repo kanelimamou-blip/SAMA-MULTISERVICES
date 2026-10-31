@@ -43,10 +43,23 @@ function alerts(day, b) {
 const timeNow = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
 // ---------- Accueil
+// « Ma journée en 3 étapes » : où en est la journée, et l'étape suivante en évidence
+function dayGuide(day) {
+  const d = S.days[day], n = live(day).length;
+  const steps = [
+    [!!(d && d.open), t("Ouvrir le matin"), t("Compte le liquide et note le solde de chaque opérateur."), "#ouverture"],
+    [n > 0, t("Noter chaque opération"), n ? t("{n} opération(s) notée(s) aujourd'hui.", { n }) : t("Dépôt, retrait, crédit, vente : une ligne à chaque fois."), "#saisie/depot"],
+    [!!(d && d.close), t("Clôturer le soir"), t("Recompte, regarde l'écart et envoie le rapport au propriétaire."), "#cloture"],
+  ];
+  const cur = steps.findIndex((x) => !x[0]);
+  return `<div class="card daysteps"><h2>${t("Ma journée en 3 étapes")}</h2><ol>${steps.map(([done, h, p, href], i) =>
+    `<li class="${done ? "done" : i === cur ? "now" : ""}"><a href="${href}"><b>${done ? "✓ " : ""}${h}</b><span class="small muted">${p}</span></a></li>`).join("")}</ol></div>`;
+}
 function viewHome() {
   const day = today(), b = balances(day), d = S.days[day];
   if (!b) {
     $view.innerHTML = `${trialBanner()}
+      ${dayGuide(day)}
       <div class="card"><h2>${t("Ouvre ta journée")}</h2>
         <p class="muted">${t("Compte ton liquide et regarde tes soldes électroniques pour commencer.")}</p>
         <a class="btn" href="#ouverture">${t("Ouvrir la journée")}</a></div>
@@ -89,11 +102,13 @@ function viewHome() {
       <div class="row"><h2>${t("Dernières opérations")}</h2><a class="small" href="#journal">${t("Tout voir")}</a></div>
       ${list.length ? `<ul class="ops">${list.slice(0, 5).map((o) => opRow(o)).join("")}</ul>` : `<p class="muted">${t("Aucune opération pour l'instant. Appuie sur Dépôt ou Retrait.")}</p>`}
     </div>
-    ${!d.close ? `<div class="two">${S.users.length > 1 ? `<a class="btn alt" href="#releve">${t("Passer la caisse")}</a>` : ""}<a class="btn alt" href="#cloture">${t("Clôturer la caisse")}</a></div>` : ""}`;
+    ${!d.close ? `<div class="two">${S.users.length > 1 ? `<a class="btn alt" href="#releve">${t("Passer la caisse")}</a>` : ""}<a class="btn alt" href="#cloture">${t("Clôturer la caisse")}</a></div>` : ""}
+    ${dayGuide(day)}`;
   wireDemo();
 }
 function wireDemo() {
   const q = document.getElementById("quitdemo"); if (q) q.onclick = () => exitDemo();
+  if (!VOIR && !demoOn()) { $view.insertAdjacentHTML("afterbegin", installCard()); wireInstall(); }
   // lien discret vers l'espace admin, en bas de l'accueil
   if (Compte.enabled && !VOIR && !demoOn()) $view.insertAdjacentHTML("beforeend", `<p class="foot"><a href="#admin">${t("Espace propriétaire")}</a></p>`);
 }
@@ -126,12 +141,16 @@ function opRow(o, withActions = false) {
       ${o.corrects ? `<br><span class="small muted">${t("Correction d'une opération")}</span>` : ""}</span>
     <span class="amt">${fmt(o.amount)}</span>
     ${withActions && !o.cancelled && !closed && isBoss() ? `<span class="acts">${o.kind === "mm" ? `<button class="link" data-fix="${o.id}">${t("Corriger")}</button>` : ""}<button class="link" data-cancel="${o.id}">${t("Annuler")}</button></span>` : ""}
-    ${withActions && o.phone && o.kind === "mm" && !o.cancelled ? `<span class="acts"><a class="link" href="${waLink(o.phone, receiptText(o))}" target="_blank" rel="noopener">${t("Reçu WhatsApp")}</a></span>` : ""}
+    ${withActions && o.phone && o.kind === "mm" && !o.cancelled && !saidStop(o.phone) ? `<span class="acts"><a class="link" href="${waLink(o.phone, receiptText(o))}" target="_blank" rel="noopener">${t("Reçu WhatsApp")}</a></span>` : ""}
   </li>`;
 }
 function receiptText(o) {
-  return t("Reçu {k}\n{d} à {h}\n{x} : {m}\nNuméro : {p}\nMerci de votre confiance.", { k: S.kiosk || CFG.name, d: shortDay(o.day), h: timeOf(o.t), x: describe(o), m: fmt(o.amount), p: phoneFmt(o.phone) });
+  return t("Reçu {k}\n{d} à {h}\n{x} : {m}\nNuméro : {p}\nMerci de votre confiance.", { k: S.kiosk || CFG.name, d: shortDay(o.day), h: timeOf(o.t), x: describe(o), m: fmt(o.amount), p: phoneFmt(o.phone) }) + "\n\n" + STOP_LINE();
 }
+// Consentement : chaque message à un client se termine par la ligne STOP, et l'appli n'écrit plus à ceux qui ont dit STOP
+const STOP_LINE = () => t("Répondez STOP pour ne plus recevoir de messages.");
+const saidStop = (phone) => (S.stop || []).includes(phoneClean(phone));
+function setStop(phone, on) { const p = phoneClean(phone); S.stop = (S.stop || []).filter((x) => x !== p); if (on) S.stop.push(p); store.save(); }
 
 // ---------- Saisie rapide d'un dépôt ou d'un retrait
 function dayReady() {
@@ -224,10 +243,13 @@ function viewEntry(type = "depot", fixId = null) {
 }
 // Après une opération avec numéro : reçu WhatsApp au client
 function viewSaved(o) {
+  setTimeout(() => { const b = document.getElementById("stop"); if (b) b.onclick = () => { setStop(o.phone, true); toast(t("Noté : plus de message à ce numéro.")); viewSaved(o); }; });
   $view.innerHTML = `<div class="card"><h2>${t("Opération notée")}</h2>
     <p>${esc(describe(o))} · <b>${fmt(o.amount)}</b> · ${esc(phoneShow(o.phone))}</p>
     ${o.flag ? `<p class="alert warn">${t("Opération inhabituelle : elle apparaîtra dans le rapport du patron.")}</p>` : ""}
-    <a class="btn" href="${waLink(o.phone, receiptText(o))}" target="_blank" rel="noopener">${t("Envoyer le reçu par WhatsApp")}</a>
+    ${saidStop(o.phone) ? `<p class="small muted">${t("Ce client a répondu STOP : pas de message.")}</p>`
+      : `<a class="btn" href="${waLink(o.phone, receiptText(o))}" target="_blank" rel="noopener">${t("Envoyer le reçu par WhatsApp")}</a>
+    <button class="link" id="stop">${t("Le client a répondu STOP")}</button>`}
     <div class="two"><a class="btn alt" href="#saisie/${o.type}">${t("Nouvelle opération")}</a><a class="btn alt" href="#accueil">${t("Caisse")}</a></div></div>`;
 }
 
@@ -386,12 +408,17 @@ function viewOpen() {
   const day = today(), d = S.days[day];
   if (d && d.open && live(day).length) return go("accueil");
   const sug = (d && d.open) || suggestedOpening(day) || { cash: 0, float: {} };
+  const askSeuils = isBoss() && noSeuils();
   $view.innerHTML = `<h1>${t("Ouvrir la journée")}</h1>
     <p class="muted">${t("Compte le liquide de la caisse et regarde le solde de chaque opérateur sur ton téléphone d'agent.")}</p>
     ${suggestedOpening(day) && !(d && d.open) ? `<p class="small muted">${t("Montants repris de la dernière clôture. Corrige-les si besoin.")}</p>` : ""}
     <form class="card" id="f">
       ${moneyInput("cash", sug.cash, t("Liquide en caisse"))}
       ${OPS().map((o) => moneyInput("fl-" + o.id, sug.float[o.id], t("Solde {op}", { op: o.name }))).join("")}
+      ${askSeuils ? `<fieldset class="field" id="seuils"><legend>${t("Seuils d'alerte, à fixer avec le propriétaire")}</legend>
+        <p class="small muted">${t("En dessous de ces montants, l'appli te prévient qu'il faut recharger ou aller chercher du liquide. Tu peux les changer plus tard dans Plus › Float.")}</p>
+        ${moneyInput("s-cash", "", t("Liquide minimum"))}
+        ${OPS().map((o) => moneyInput("s-" + o.id, "", t("Solde {op} minimum", { op: o.name }))).join("")}</fieldset>` : ""}
       <button class="btn" type="submit">${t("Ouvrir la journée")}</button>
     </form>`;
   wireMoney();
@@ -399,6 +426,7 @@ function viewOpen() {
     e.preventDefault();
     const float = {};
     for (const o of OPS()) float[o.id] = num(val("fl-" + o.id));
+    if (askSeuils && (val("s-cash") || OPS().some((o) => val("s-" + o.id)))) S.seuils = { cash: num(val("s-cash")), float: Object.fromEntries(OPS().map((o) => [o.id, num(val("s-" + o.id))])) };
     S.days[day] = { ...(S.days[day] || {}), open: { cash: num(val("cash")), float, at: new Date().toISOString(), by: ME } };
     logEvent("ouverture de caisse");
     store.save(); toast(t("Journée ouverte.")); go("accueil");
@@ -445,8 +473,9 @@ function viewClose() {
       ${shiftsTable(d)}
       <div class="card"><p class="row"><span>${t("Gain du jour")}</span><b class="good">${fmt(gainBetween(day, day))}</b></p>
         <p class="small muted">${t("Clôturée à {h} par {n}. Ces montants serviront à ouvrir la prochaine journée.", { h: timeOf(c.at), n: esc(userName(c.by)) })}</p></div>
-      <a class="btn" href="${waLink(S.contacts.patron, dayReport(day))}" target="_blank" rel="noopener">${t("Envoyer le rapport du jour par WhatsApp")}</a>
+      ${reportBox(day)}
       ${isBoss() ? `<button class="btn alt" id="reopen">${t("Rouvrir la caisse")}</button>` : ""}`;
+    wireReportBox(day);
     const r = document.getElementById("reopen");
     if (r) r.onclick = () => { delete d.close; logEvent("caisse rouverte"); store.save(); toast(t("Caisse rouverte.")); go("accueil"); };
     return;

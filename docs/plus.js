@@ -171,8 +171,12 @@ function viewClients() {
   const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
   $view.innerHTML = `<h1>${t("Clients")}</h1>
     <div class="card"><h2>${t("Clients habituels")}</h2>
-      ${S.clients.map((c) => `<p class="row"><span><b>${esc(c.name)}</b><br><span class="small muted">${esc(phoneShow(c.phone))} · ${t("{n} passage(s)", { n: counts[c.phone] || 0 })}</span></span><span><a class="link" href="#journal/q=${c.phone}">${t("Historique")}</a> <button class="link" data-del="${c.id}">${t("Retirer")}</button></span></p>`).join("") || `<p class="small muted">${t("Enregistre tes habitués : leur nom apparaît pendant la saisie.")}</p>`}
+      ${S.clients.map((c) => `<p class="row"><span><b>${esc(c.name)}</b><br><span class="small muted">${esc(phoneShow(c.phone))} · ${t("{n} passage(s)", { n: counts[c.phone] || 0 })}</span></span><span><a class="link" href="#journal/q=${c.phone}">${t("Historique")}</a> <button class="link" data-del="${c.id}">${t("Retirer")}</button></span></p>
+        <p class="row small"><span>${saidStop(c.phone) ? `<b class="bad">${t("A dit STOP : aucun message")}</b>` : c.consent ? t("Accepte les messages") : t("N'a pas encore dit oui aux messages")}</span>
+          <button class="link" data-stop="${c.phone}" data-on="${saidStop(c.phone) ? "0" : "1"}">${saidStop(c.phone) ? t("Accepte de nouveau") : t("A répondu STOP")}</button></p>`).join("") || `<p class="small muted">${t("Enregistre tes habitués : leur nom apparaît pendant la saisie.")}</p>`}
       <div class="two">${textInput("cn", "", t("Nom"), 'maxlength="30"')}${textInput("cp", "", t("Numéro"), 'type="tel" inputmode="tel" maxlength="14"')}</div>
+      <label class="check"><input type="checkbox" id="consent"> ${t("Le client accepte de recevoir des messages (reçus, rappels). Demande-lui avant.")}</label>
+      <p class="small muted">${t("Chaque message se termine par « {s} ». Si le client répond STOP, appuie sur « A répondu STOP » : l'appli ne proposera plus de lui écrire.", { s: STOP_LINE() })}</p>
       <button class="btn alt" id="addc">${t("Ajouter")}</button></div>
     <div class="card"><h2>${t("Fidélité")}</h2>
       <p class="small muted">${t("Un cadeau tous les {n} passages. L'appli te le rappelle pendant la saisie.", { n: every })}</p>
@@ -183,8 +187,15 @@ function viewClients() {
     ${listCard("avis", "Avis des clients", "Ce que les clients disent du kiosque.", [["client", "Client"], ["note", "Avis"]])}`;
   document.getElementById("addc").onclick = () => {
     const p = phoneClean(val("cp")); if (!val("cn").trim() || p.length !== 9) return toast(t("Écris le nom et un numéro à 9 chiffres."));
-    S.clients = S.clients.filter((c) => c.phone !== p); S.clients.push({ id: uid(), name: val("cn").trim(), phone: p }); store.save(); viewClients();
+    S.clients = S.clients.filter((c) => c.phone !== p); S.clients.push({ id: uid(), name: val("cn").trim(), phone: p, consent: document.getElementById("consent").checked });
+    if (document.getElementById("consent").checked) setStop(p, false); else store.save();
+    viewClients();
   };
+  $view.querySelectorAll("[data-stop]").forEach((b) => b.onclick = () => {
+    const on = b.dataset.on === "1"; setStop(b.dataset.stop, on);
+    if (!on) { const c = S.clients.find((x) => x.phone === b.dataset.stop); if (c) { c.consent = true; store.save(); } }
+    viewClients();
+  });
   $view.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => { S.clients = S.clients.filter((c) => c.id !== b.dataset.del); store.save(); viewClients(); });
   const sl = document.getElementById("saveloy"); if (sl) sl.onclick = () => { S.loyalty = Math.max(2, num(val("loy"))); store.save(); viewClients(); };
   wireLists(viewClients);
@@ -338,12 +349,29 @@ function viewAide() {
     ["Le soir", "Clôture : compte le liquide, note les soldes réels. L'appli montre l'écart et les opérations à vérifier."],
     ["Une erreur ?", "Dans le Journal, le patron peut annuler ou corriger : l'ancienne ligne reste barrée, rien ne s'efface."],
   ];
+  const mots = [
+    ["Liquide", "L'argent en billets et en pièces dans ta caisse.", "Ce que tu peux toucher."],
+    ["Float (solde électronique)", "L'argent sur ton compte d'agent chez chaque opérateur (Wave, Orange Money…).", "Ton stock de marchandise, mais en électronique."],
+    ["Dépôt", "Le client te donne du liquide, tu lui envoies de l'électronique : ton liquide monte, ton float baisse.", "Il achète de l'électronique avec ses billets."],
+    ["Retrait", "Le client t'envoie de l'électronique, tu lui donnes du liquide : ton liquide baisse, ton float monte.", "Il revend son électronique contre des billets."],
+    ["Ouverture", "Le matin, tu comptes le liquide et tu notes chaque solde. C'est le point de départ.", "Compter la marchandise avant d'ouvrir la boutique."],
+    ["Clôture", "Le soir, tu recomptes et tu notes les soldes réels. L'appli compare avec ce qu'elle a calculé.", "Fermer le cahier de la journée."],
+    ["Écart", "La différence entre ce que tu as compté et ce que l'appli attendait. 0 F, c'est parfait.", "Le trou ou le surplus dans la caisse."],
+    ["Seuil d'alerte", "Le montant minimum, fixé avec le propriétaire, en dessous duquel l'appli te prévient.", "Le voyant de réserve d'essence."],
+    ["Recharge (reconstitution)", "Échanger du liquide contre du float, ou l'inverse, chez ton super-agent.", "Aller se réapprovisionner chez le grossiste."],
+    ["Commission", "Ce que l'opérateur te paie pour chaque opération. Saisis tes barèmes pour la voir.", "Ta marge sur chaque vente."],
+    ["Rapport du soir", "Le résumé de la journée (soldes matin et soir, écarts, gains) envoyé au propriétaire sur WhatsApp.", "Le compte rendu au patron."],
+    ["STOP", "Un client qui répond STOP ne veut plus de messages : l'appli ne te proposera plus de lui écrire.", "Respecter le « non merci »."],
+  ];
   $view.innerHTML = `<h1>${t("Aide")}</h1>
     <div class="card"><h2>${t("Guide en 5 étapes")}</h2><ol class="steps">${steps.map(([h, p]) => `<li><b>${t(h)}</b> : ${t(p)}</li>`).join("")}</ol></div>
+    <div class="card"><h2>${t("Les mots de l'appli")}</h2><dl class="mots">${mots.map(([m, d, img]) => `<dt>${t(m)}</dt><dd>${t(d)} <span class="muted">${t("L'image")} : ${t(img)}</span></dd>`).join("")}</dl></div>
+    ${installCard(true)}
     <a class="card linkcard" href="#demo"><b>${t("Essayer en mode démonstration")}</b><span class="small muted">${t("Des exemples pour apprendre sans toucher à ton cahier.")}</span></a>
     <div class="card"><h2>${t("Assistance")}</h2><p class="small">${t("Une question, un problème ? Écris-nous sur WhatsApp au")} <b class="copy">${esc(phoneFmt(CFG.whatsapp.slice(3)))}</b>.</p>
       <a class="btn" href="${waLink(CFG.whatsapp.slice(3), t("Bonjour, j'ai une question sur {app} :", { app: CFG.name }))}" target="_blank" rel="noopener">${t("Écrire sur WhatsApp")}</a></div>
     <div class="card note"><p class="small">${t("L'appli ne fait aucun transfert et ne te demandera jamais ton code secret d'opérateur.")}</p></div>`;
+  wireInstall();
 }
 
 // ---------- Réglages

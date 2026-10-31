@@ -48,6 +48,9 @@ const ADMIN = "proprietaire-uid";
   await no("admin : modifier le cahier d'un client", setDoc(doc(admin, "kiosques/alice/cahier/j_2026-10-30"), jour("2026-10-30")));
   await no("admin : effacer une journée d'un client", deleteDoc(doc(admin, "kiosques/alice/cahier/j_2026-10-30")));
   await no("admin : changer le nom d'un kiosque", updateDoc(doc(admin, "kiosques/bob"), { name: "x" }));
+  await ok("admin : noter un paiement et un tarif", updateDoc(doc(admin, "kiosques/alice"), { payeLe: "2026-10-31", payeMois: "2026-10", tarif: 3000 }));
+  await no("client : se noter payé", updateDoc(doc(alice, "kiosques/alice"), { payeMois: "2026-12", lastActive: serverTimestamp() }));
+  await no("client : changer son tarif", updateDoc(doc(alice, "kiosques/alice"), { tarif: 0, lastActive: serverTimestamp() }));
   await ok("admin : suspendre", updateDoc(doc(admin, "kiosques/bob"), { blocked: true }));
   // client suspendu
   await ok("client suspendu : voir qu'il est suspendu", getDoc(doc(bob, "kiosques/bob")).then((s) => assert.strictEqual(s.data().blocked, true)));

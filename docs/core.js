@@ -12,7 +12,7 @@ const DEFAULTS = () => ({
   baremes: {}, fees: {}, seuils: { cash: 0, float: {} }, services: [], stock: [], clients: [],
   annonces: [], rdv: [], reclamations: [], avis: [], epargne: { goal: 0, label: "" }, planning: {},
   contacts: { alerte: "", service: {} }, plafonds: {}, idThreshold: 0, unusual: 0, hours: "", closeAt: "20:00",
-  mask: false, log: [], quiz: {}, fiches: [], releves: {}, fetes: [],
+  mask: false, stop: [], log: [], quiz: {}, fiches: [], releves: {}, fetes: [],
 });
 const store = {
   load() { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { return {}; } },

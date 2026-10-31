@@ -10,6 +10,10 @@ Voir `IDEES.md` : l'état de chacune des 100 idées. En bref : cahier de caisse 
 
 Pas de paiement dans l'appli et aucun blocage automatique : le propriétaire encaisse les abonnements lui-même, hors de l'appli, et suspend ou réactive un client depuis l'espace admin.
 
+## Côté kiosque (plan de lancement)
+
+Accueil « Ma journée en 3 étapes » (ouvrir, noter, clôturer) ; seuils d'alerte demandés à la première ouverture ; rapport du soir au propriétaire en un geste WhatsApp (matin, soir et écart par opérateur et pour le liquide) ; consentement des clients et ligne « Répondez STOP » dans chaque message, plus de message à ceux qui ont dit STOP ; page « Les mots de l'appli » ; carte d'installation sur l'écran d'accueil (bouton direct sur Android, gestes pour iPhone).
+
 ## Fichiers
 
 - `docs/` : l'appli (HTML/JS sans dépendance, polices du téléphone, environ 150 Ko), publiée sur GitHub Pages à chaque modification de `main`.
@@ -37,6 +41,7 @@ Page `#admin` (lien discret « Espace propriétaire » en bas de l'accueil et de
 - par client : Suspendre/Réactiver, WhatsApp, « Voir » (l'appli comme le client la voit, en patron ou en employé, en lecture seule) ;
 - erreurs (`erreurs`) : plantages et écritures refusées, au plus 5 par visite, avec message, écran, client, rôle et téléphone ; l'admin les efface ;
 - « Nouveau client » : l'admin prépare le kiosque (nom, quartier, téléphone) et obtient un lien `#invite/CODE` et son QR code (Partager, Copier, WhatsApp). Le propriétaire s'inscrit par ce lien et trouve son kiosque déjà nommé ; l'invitation ne sert qu'une fois (vérifié par les règles) ;
+- suivi des encaissements (hors appli) : tarif par kiosque (3 000 F par défaut, `CFG.tarif`), « Payé ce mois », essai gratuit 14 jours, repères « À relancer » dès le 5 (message WhatsApp prêt) et « À suspendre ? » dès le 10 ; la suspension reste un clic de l'admin ;
 - mode présentation : données d'exemple et barre du haut pour passer de patron à employé.
 
 Les règles Firestore font la sécurité : seul l'admin lit la liste, les cahiers et les erreurs ; il ne peut modifier que `blocked`. Un kiosque suspendu voit « suspendu, contacte l'équipe au 78 272 19 20 » et les règles refusent toutes ses écritures, même en contournant l'appli ; il ne peut pas se réactiver.

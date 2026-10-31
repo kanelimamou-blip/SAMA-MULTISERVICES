@@ -11,7 +11,7 @@ service cloud.firestore {
     // un kiosque suspendu par l'admin n'enregistre plus rien, même en contournant l'appli
     function open(uid) { return get(/databases/$(db)/documents/kiosques/$(uid)).data.get('blocked', false) != true; }
 
-    // Fiche de chaque kiosque (un compte = un kiosque). L'admin lit tout ; il ne change que « blocked ».
+    // Fiche de chaque kiosque (un compte = un kiosque). L'admin lit tout ; il ne change que « blocked » et le suivi d'encaissement (tarif, payé le).
     // Le client ne peut ni se suspendre, ni se réactiver, ni changer sa date d'inscription.
     match /kiosques/{uid} {
       allow read: if me(uid) || admin();
@@ -28,8 +28,10 @@ service cloud.firestore {
           && request.resource.data.lastActive == request.time
           && str(request.resource.data.name, 60) && str(request.resource.data.quartier, 60) && str(request.resource.data.tel, 20))
         || (admin()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked'])
-          && request.resource.data.blocked is bool);
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked', 'tarif', 'payeLe', 'payeMois'])
+          && request.resource.data.get('blocked', false) is bool
+          && request.resource.data.get('tarif', 0) is int
+          && str(request.resource.data.get('payeLe', ''), 10) && str(request.resource.data.get('payeMois', ''), 7));
       allow delete: if false;
 
       // Copie du cahier : « base » (réglages, équipe…) et un document par jour (opérations, ouverture et clôture).

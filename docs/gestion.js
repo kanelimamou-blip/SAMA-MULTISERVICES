@@ -207,16 +207,25 @@ function viewStock() {
 }
 
 // ---------- Rapports
+const noSeuils = () => !(S.seuils.cash || Object.values(S.seuils.float || {}).some(Boolean));
 function dayReport(day) {
-  const tot = totals(day), d = S.days[day] || {}, b = balances(day), c = d.close;
+  const tot = totals(day), d = S.days[day] || {}, b = balances(day), c = d.close, o0 = d.open;
   const flagged = live(day).filter((o) => o.flag);
+  // une ligne par caisse : matin, soir (compté si la journée est clôturée), écart
+  const line = (name, morning, expected, counted, seuil) => {
+    const soir = counted ?? expected, low = seuil && soir < seuil;
+    return `${name} : ${t("matin")} ${o0 ? fmt(morning || 0) : "—"} · ${t("soir")} ${b ? fmt(soir) : "—"}${counted != null ? ` · ${t("écart")} ${fmtSigned(counted - expected)}` : ""}${low ? ` ⚠ ${t("sous le seuil de {s}", { s: fmt(seuil) })}` : ""}`;
+  };
   const lines = [
     t("Rapport du {d} · {k}", { d: longDay(day), k: S.kiosk || CFG.name }),
     "",
-    ...Object.entries(tot).filter(([, r]) => r.n).map(([op, r]) => `${opName(op)} : ${t("dépôts")} ${fmt(r.depot)}, ${t("retraits")} ${fmt(r.retrait)} (${r.n})`),
+    t("Soldes (matin · soir · écart)") + " :",
+    b ? line(t("Liquide"), o0 && o0.cash, c ? c.expected.cash : b.cash, c ? c.cash : null, S.seuils.cash) : t("Journée pas encore ouverte."),
+    ...(b ? OPS().map((o) => line(o.name, o0 && o0.float[o.id], c ? (c.expected.float[o.id] || 0) : (b.float[o.id] || 0), c ? (c.float[o.id] || 0) : null, (S.seuils.float || {})[o.id])) : []),
+    ...(c ? [] : b ? ["(" + t("journée pas encore clôturée : montants calculés par l'appli") + ")"] : []),
     "",
-    `${t("Liquide")} : ${b ? fmt(b.cash) : "—"}${c ? ` (${t("compté")} ${fmt(c.cash)}, ${t("écart")} ${fmtSigned(c.cash - c.expected.cash)})` : ""}`,
-    ...OPS().map((o) => `${o.name} : ${b ? fmt(b.float[o.id] || 0) : "—"}${c ? ` (${t("réel")} ${fmt(c.float[o.id] || 0)})` : ""}`),
+    t("Opérations") + " :",
+    ...Object.entries(tot).filter(([, r]) => r.n).map(([op, r]) => `${opName(op)} : ${t("dépôts")} ${fmt(r.depot)}, ${t("retraits")} ${fmt(r.retrait)} (${r.n})`),
     "",
     `${t("Gain du jour")} : ${fmt(gainBetween(day, day))}`,
     `${t("Dépenses")} : ${fmt(expensesBetween(day, day))}`,
@@ -225,14 +234,24 @@ function dayReport(day) {
   ];
   return lines.join("\n");
 }
+// Envoi du rapport au propriétaire : son numéro WhatsApp, puis un lien wa.me avec le texte prêt
+function reportBox(day) {
+  return `<div class="card"><h2>${t("Rapport au propriétaire")}</h2>
+    ${textInput("patron", phoneFmt(S.contacts.patron), t("Numéro WhatsApp du propriétaire"), 'type="tel" inputmode="tel" maxlength="14"')}
+    <div class="two"><a class="btn" id="wa" href="${waLink(S.contacts.patron, dayReport(day))}" target="_blank" rel="noopener">${t("Envoyer par WhatsApp")}</a><button class="btn alt" id="cp" type="button">${t("Copier")}</button></div></div>`;
+}
+function wireReportBox(day) {
+  const p = document.getElementById("patron");
+  p.onchange = () => { S.contacts.patron = phoneClean(p.value); store.save(); document.getElementById("wa").href = waLink(S.contacts.patron, dayReport(day)); };
+  document.getElementById("cp").onclick = () => copyText(dayReport(day));
+}
 function viewRapports() {
   if (needBoss(t("Les rapports sont réservés au patron."))) return;
   const m = monthOf(today()), prevM = monthOf(addDays(m + "-01", -1));
   $view.innerHTML = `<h1>${t("Rapports")}</h1>
     <div class="card"><h2>${t("Rapport du jour")}</h2>
-      <pre class="report">${esc(dayReport(today()))}</pre>
-      ${textInput("patron", phoneFmt(S.contacts.patron), t("Numéro WhatsApp du patron"), 'type="tel" inputmode="tel" maxlength="14"')}
-      <div class="two"><a class="btn" id="wa" href="${waLink(S.contacts.patron, dayReport(today()))}" target="_blank" rel="noopener">${t("Envoyer par WhatsApp")}</a><button class="btn alt" id="cp">${t("Copier")}</button></div></div>
+      <pre class="report">${esc(dayReport(today()))}</pre></div>
+    ${reportBox(today())}
     <div class="menu">
       <a class="menu-item" href="#mois/${m}"><b>${t("Rapport mensuel imprimable")}</b><span>${esc(monthName(m))} · <span class="link">${esc(monthName(prevM))}</span></span></a>
       <a class="menu-item" href="#microcredit"><b>${t("Bilan pour un micro-crédit")}</b><span>${t("Les 3 derniers mois, à montrer à la mutuelle ou à la banque")}</span></a>
@@ -240,9 +259,7 @@ function viewRapports() {
       <a class="menu-item" href="#depenses"><b>${t("Dépenses et notes de frais")}</b><span>${t("Loyer, électricité, salaires, transport")}</span></a>
       <a class="menu-item" href="#impots"><b>${t("Patente et impôts")}</b><span>${t("Repères simples")}</span></a>
     </div>`;
-  const p = document.getElementById("patron");
-  p.onchange = () => { S.contacts.patron = phoneClean(p.value); store.save(); document.getElementById("wa").href = waLink(S.contacts.patron, dayReport(today())); };
-  document.getElementById("cp").onclick = () => copyText(dayReport(today()));
+  wireReportBox(today());
 }
 function monthSummary(m) {
   const [from, to] = monthBounds(m), ops = opsBetween(from, to), mm = ops.filter((o) => o.kind === "mm");

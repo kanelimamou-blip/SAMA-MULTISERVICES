@@ -257,3 +257,13 @@ body.admin main{max-width:880px}
 .tabs2 button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
 .btn-ghost.icon{font-size:1.2rem;padding:8px 14px;border:1.5px solid var(--line);border-radius:12px}
 [hidden]{display:none!important}
+.daysteps ol{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.daysteps li a{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;text-decoration:none;color:var(--ink)}
+.daysteps li.now a{border-color:var(--accent);background:var(--in-soft)}
+.daysteps li.done a{opacity:.7}
+.daysteps li.done b{color:var(--in)}
+.mots dt{font-weight:700;margin-top:10px}
+.mots dd{margin:2px 0 0}
+.install-card .steps{margin:8px 0;padding-left:20px}
+.pay .tarif{width:5.5em;padding:2px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);font:inherit}
+.pay .pill{vertical-align:baseline}

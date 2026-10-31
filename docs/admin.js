@@ -36,6 +36,7 @@ function viewLogin(mode = location.hash === "#admin" ? "login" : "create", msg =
     <button class="btn alt" id="google">${t("Continuer avec Google")}</button>
     <p class="foot"><a href="#admin">${t("Espace propriétaire")}</a></p>`;
   $view.insertAdjacentHTML("afterbegin", `<div id="invite-note"></div>`);
+  $view.insertAdjacentHTML("beforeend", installCard()); wireInstall();
   Compte.readInvite().then((inv) => {
     const el = document.getElementById("invite-note"); if (!el || !inv) return;
     el.innerHTML = inv.usedBy ? `<div class="card warn-card"><p class="small">${t("Cette invitation a déjà servi. Connecte-toi avec ton compte, ou crée un compte normalement.")}</p></div>`
@@ -100,7 +101,20 @@ function qrSvg(text, size = 220) {
   for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${c + m},${r + m}h1v1h-1z`;
   return `<svg class="qr" viewBox="0 0 ${s} ${s}" width="${size}" height="${size}" role="img" aria-label="QR code"><rect width="${s}" height="${s}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
 }
-const FILTERS = [["tous", "Tous"], ["Actif", "Actifs"], ["Nouveau", "Nouveaux"], ["Inactif", "Inactifs"], ["Suspendu", "Suspendus"]];
+const FILTERS = [["tous", "Tous"], ["Actif", "Actifs"], ["Nouveau", "Nouveaux"], ["Inactif", "Inactifs"], ["Suspendu", "Suspendus"], ["pay:À relancer", "À relancer"], ["pay:À suspendre ?", "À suspendre ?"]];
+// Suivi des encaissements (l'argent est encaissé hors de l'appli) : payé ce mois, essai gratuit de 14 jours,
+// à relancer à partir du 5, à suspendre à partir du 10. Ce ne sont que des repères : la suspension reste un clic de l'admin.
+const tarifOf = (k) => k.tarif || CFG.tarif;
+function payState(k, day = today()) {
+  const dom = +day.slice(8);
+  if (k.payeMois && k.payeMois >= monthOf(day)) return ["Payé", "on"];
+  if (ageDays(k) < 14) return ["Essai gratuit", "new"];
+  if (dom >= 10) return ["À suspendre ?", "off"];
+  if (dom >= 5) return ["À relancer", "late"];
+  return ["À encaisser", ""];
+}
+const relanceText = (k) => t("Bonjour {n}, petit rappel : l'abonnement {app} de {m} ({p}) est à régler. Merci de ta confiance. L'équipe {app}, {tel}.",
+  { n: k.name || "", app: CFG.name, m: monthName(monthOf(today())), p: fmt(tarifOf(k)), tel: CFG.contact });
 
 async function viewAdmin() {
   document.body.classList.add("bare", "admin");
@@ -167,14 +181,18 @@ async function viewAdmin() {
     document.getElementById("pane-kiosques").hidden = tab !== "kiosques";
     document.getElementById("pane-erreurs").hidden = tab !== "erreurs";
     $view.querySelectorAll("#ad-f [data-f]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.f === filter));
-    const list = rows.filter((k) => (filter === "tous" || st(k) === filter) && (!q || `${k.name} ${k.quartier} ${k.tel} ${phoneFmt(k.tel)} ${k.id}`.toLowerCase().includes(q.toLowerCase())));
+    const list = rows.filter((k) => (filter === "tous" || st(k) === filter || (filter.startsWith("pay:") && payState(k)[0] === filter.slice(4))) && (!q || `${k.name} ${k.quartier} ${k.tel} ${phoneFmt(k.tel)} ${k.id}`.toLowerCase().includes(q.toLowerCase())));
     document.getElementById("ad-list").innerHTML = list.length ? `<ul class="ops">${list.map((k) => {
       const a = act[k.id], [s, cls] = kState(k, a), e = errs.filter((x) => x.uid === k.id).length, c = tsDate(k.created);
       return `<li class="op acct" data-id="${esc(k.id)}">
         <span class="what"><b>${esc(k.name || "—")}</b><br><span class="small muted">${[k.quartier, phoneFmt(k.tel)].filter(Boolean).map(esc).join(" · ")}${k.quartier || k.tel ? " · " : ""}${t("inscrit le {d}", { d: c ? esc(shortDay(dayOf(c))) : "—" })}</span><br>
-          <span class="small">${a ? t("{n} opération(s) cette semaine", { n: a.ops }) + (a.last ? " · " + t("dernière le {d}", { d: esc(shortDay(a.last)) }) : "") : t("Activité inconnue")}${e ? ` · <b class="bad">${t("{n} erreur(s)", { n: e })}</b>` : ""}</span></span>
+          <span class="small">${a ? t("{n} opération(s) cette semaine", { n: a.ops }) + (a.last ? " · " + t("dernière le {d}", { d: esc(shortDay(a.last)) }) : "") : t("Activité inconnue")}${e ? ` · <b class="bad">${t("{n} erreur(s)", { n: e })}</b>` : ""}</span><br>
+          <span class="small pay">${t("Abonnement")} <input class="tarif" data-tarif inputmode="numeric" value="${tarifOf(k)}" aria-label="${t("Tarif mensuel")}"> F · ${k.payeLe ? t("payé le {d}", { d: esc(shortDay(k.payeLe)) }) : t("jamais payé")}
+            · <span class="pill ${payState(k)[1]}" data-pay>${t(payState(k)[0])}</span></span></span>
         <span class="pill ${cls}">${t(s)}</span>
-        <span class="acts"><button class="link" data-act="${k.blocked ? "unblock" : "block"}">${k.blocked ? t("Réactiver") : t("Suspendre")}</button>
+        <span class="acts">${payState(k)[0] !== "Payé" ? `<button class="link" data-act="paid">${t("Payé ce mois")}</button>` : ""}
+          ${k.tel && ["À relancer", "À suspendre ?"].includes(payState(k)[0]) ? `<a class="link" data-relance target="_blank" rel="noopener" href="${waLink(k.tel, relanceText(k))}">${t("Relancer")}</a>` : ""}
+          <button class="link" data-act="${k.blocked ? "unblock" : "block"}">${k.blocked ? t("Réactiver") : t("Suspendre")}</button>
           ${k.tel ? `<a class="link" target="_blank" rel="noopener" href="${waLink(k.tel, t("Bonjour, ici l'équipe {app}. ", { app: CFG.name }))}">WhatsApp</a>` : ""}
           <button class="link" data-act="voir">${t("Voir")}</button></span></li>`;
     }).join("")}</ul>` : `<p class="muted">${t("Aucun client.")}</p>`;
@@ -230,6 +248,12 @@ async function viewAdmin() {
     const b = e.target.closest("[data-act]"); if (!b) return;
     const k = rows.find((x) => x.id === b.closest("[data-id]").dataset.id); if (!k) return;
     if (b.dataset.act === "voir") return openVoir(k);
+    if (b.dataset.act === "paid") {
+      const up = { payeLe: today(), payeMois: monthOf(today()) };
+      try { await Compte.setPay(k.id, up); Object.assign(k, up); toast(t("{n} : payé pour {m}.", { n: k.name, m: monthName(up.payeMois) })); paint(); }
+      catch { toast(t("Refusé : ce compte n'est pas admin dans les règles Firebase.")); }
+      return;
+    }
     const block = b.dataset.act === "block";
     const run = async () => {
       document.getElementById("confirm").innerHTML = "";
@@ -240,6 +264,13 @@ async function viewAdmin() {
     confirmBox(document.getElementById("confirm"), t("Suspendre {n} ? Il verra « suspendu, contacte l'équipe au {tel} » et ne pourra plus rien enregistrer jusqu'à ce que tu le réactives.", { n: esc(k.name || "ce client"), tel: esc(CFG.contact) }), t("Suspendre"), run);
   };
 }
+// tarif d'un kiosque : enregistré dès qu'on quitte le champ
+document.addEventListener("change", async (e) => {
+  if (!e.target.matches("input[data-tarif]") || location.hash !== "#admin") return;
+  const id = e.target.closest("[data-id]").dataset.id, v = num(e.target.value);
+  if (!v) return;
+  try { await Compte.setPay(id, { tarif: v }); toast(t("Tarif enregistré : {p} par mois.", { p: fmt(v) })); } catch { toast(t("Refusé.")); }
+});
 // le $view.onclick de l'espace admin ne doit pas rester sur les autres écrans
 window.addEventListener("hashchange", () => { if (location.hash !== "#admin") $view.onclick = null; });
 

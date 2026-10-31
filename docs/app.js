@@ -43,8 +43,27 @@ $view.addEventListener("click", (e) => { const a = e.target.closest("a[href^='#'
 
 // Installation sur l'écran d'accueil
 let installEvt = null;
-window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; document.getElementById("install").hidden = false; });
-document.getElementById("install").onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; document.getElementById("install").hidden = true; };
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; document.getElementById("install").hidden = standalone(); const b = document.getElementById("install2"); if (b) b.hidden = false; });
+async function installNow() { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; document.getElementById("install").hidden = true; render(); }
+document.getElementById("install").onclick = installNow;
+const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+// Carte « Installer l'appli » : bouton direct sur Android (Chrome), sinon le geste à faire selon le téléphone
+function installCard(always) {
+  if (standalone()) return always ? `<div class="card"><h2>${t("Appli installée")}</h2><p class="small muted">${t("Tu l'ouvres depuis son icône, en plein écran. Elle marche aussi sans connexion.")}</p></div>` : "";
+  if (!always) { try { if (localStorage.getItem("cahier-install-plus-tard")) return ""; } catch {} }
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  return `<div class="card note install-card"><h2>${t("Installe l'appli sur ton téléphone")}</h2>
+    <p class="small">${t("Elle s'ouvre alors comme une vraie appli : une icône sur l'écran d'accueil, plein écran, et elle marche même sans connexion.")}</p>
+    <button class="btn" id="install2" ${installEvt ? "" : "hidden"}>${t("Installer maintenant")}</button>
+    ${installEvt ? "" : `<ol class="small steps">${ios
+      ? `<li>${t("Ouvre ce lien dans Safari.")}</li><li>${t("Touche le bouton Partager (le carré avec une flèche).")}</li><li>${t("Choisis « Sur l'écran d'accueil », puis « Ajouter ».")}</li>`
+      : `<li>${t("Ouvre ce lien dans Chrome.")}</li><li>${t("Touche le menu ⋮ en haut à droite.")}</li><li>${t("Choisis « Installer l'application » ou « Ajouter à l'écran d'accueil ».")}</li>`}</ol>`}
+    ${always ? "" : `<button class="link" id="install-later">${t("Plus tard")}</button>`}</div>`;
+}
+function wireInstall() {
+  const b = document.getElementById("install2"); if (b) b.onclick = installNow;
+  const l = document.getElementById("install-later"); if (l) l.onclick = () => { try { localStorage.setItem("cahier-install-plus-tard", "1"); } catch {} l.closest(".card").remove(); };
+}
 if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
 
 // Démarrage : compte en ligne (si Firebase est configuré), puis le cahier

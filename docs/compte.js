@@ -210,6 +210,7 @@ const Compte = (() => {
     .then((s) => { const ds = s.docs.map((d) => d.data()).filter((d) => d.n > 0); return { ops: sum(ds, (d) => d.n), last: ds.map((d) => d.day).sort().pop() || null }; });
   const errors = (sinceMs) => db.collection("erreurs").where("at", ">=", sinceMs).orderBy("at", "desc").limit(200).get().then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() })));
   const setBlocked = (id, b) => db.collection("kiosques").doc(id).update({ blocked: b });
+  const setPay = (id, up) => db.collection("kiosques").doc(id).update(up);
   const removeError = (id) => db.collection("erreurs").doc(id).delete();
   const createInvite = async ({ name, quartier, tel }) => {
     const code = [...crypto.getRandomValues(new Uint8Array(15))].map((x) => "abcdefghijkmnpqrstuvwxyz23456789"[x % 32]).join("");
@@ -221,6 +222,6 @@ const Compte = (() => {
   const loadCahier = (id) => db.collection("kiosques").doc(id).collection("cahier").get().then((s) => assemble(s.docs));
 
   return { enabled, start, signInGoogle, signInEmail, resetPassword, signOut, refresh, dirty, push, report, isAdmin, blocked,
-    kiosques, activity, errors, setBlocked, removeError, loadCahier, setInvite, readInvite, createInvite, invites, removeInvite,
+    kiosques, activity, errors, setBlocked, setPay, removeError, loadCahier, setInvite, readInvite, createInvite, invites, removeInvite,
     get user() { return user; }, get fiche() { return fiche; } };
 })();

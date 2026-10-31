@@ -63,6 +63,13 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   await awa.click("#f button[type=submit]"); await awa.waitForSelector(".cash .amount");
   await awa.click('a[href="#saisie/depot"]'); await awa.fill("#amount", "10000"); await awa.click("#save"); await awa.waitForSelector(".cash .amount");
   assert.strictEqual(await amount(awa), "110000F");
+  // l'accueil guide la journée en 3 étapes ; le rapport du soir donne matin, soir et écart par opérateur
+  assert.ok((await awa.textContent(".daysteps")).includes("✓ Ouvrir le matin"));
+  const rapport = (await awa.evaluate(() => dayReport(today()))).replace(/[\u00a0\u202f]/g, " ");
+  assert.ok(rapport.includes("Wave : matin 50 000 F · soir 40 000 F") && rapport.includes("Liquide : matin 100 000 F · soir 110 000 F"), rapport);
+  // consentement : la ligne STOP termine le reçu ; un client qui a dit STOP n'a plus de bouton de reçu
+  assert.ok(await awa.evaluate(() => receiptText({ day: today(), t: new Date().toISOString(), kind: "mm", type: "depot", op: "wave", amount: 1000, phone: "771112233" }).includes("STOP")));
+  await awa.evaluate(() => { setStop("771112233", true); }); assert.strictEqual(await awa.evaluate(() => saidStop("77 111 22 33")), true);
   await awa.evaluate(() => { S.users.push({ id: "e1", name: "Modou", role: "employe", pin: null, salary: 0, prime: 0 }); store.save(); return Compte.push(); });
   step("client : compte créé, journée ouverte, dépôt noté, copie en ligne faite (aucun blocage de paiement)");
   await awa.evaluate(() => setTimeout(() => { throw new Error("plantage de test sur la caisse"); }));
@@ -99,7 +106,7 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   assert.ok(txt.includes("Kiosque Médina") && txt.includes("Médina") && txt.includes("77 123 45 67") && txt.includes("Modou Fall"), "liste des clients");
   assert.ok(txt.includes("plantage de test sur la caisse"), "erreur remontée");
   assert.ok(txt.includes("1 opération(s) cette semaine"), "activité de la semaine");
-  const states = await ad.$$eval("#ad-list li", (l) => l.map((x) => x.querySelector(".pill").textContent));
+  const states = await ad.$$eval("#ad-list li", (l) => l.map((x) => x.querySelector(":scope > .pill").textContent));
   assert.deepStrictEqual(states.sort(), ["Actif", "Nouveau"]);
   assert.ok(await ad.$('#ad-list a[href^="https://wa.me/221771234567"]'), "bouton WhatsApp");
   if (shots) await ad.screenshot({ path: shots + "/1-espace-admin.png", fullPage: true });
@@ -107,6 +114,15 @@ const SUSPENDU = "suspendu, contacte l'équipe au 78 272 19 20";
   await ad.fill("#ad-q", ""); await ad.click('[data-f="Nouveau"]');
   assert.ok((await ad.textContent("#ad-list")).includes("Modou Fall") && !(await ad.textContent("#ad-list")).includes("Kiosque Médina"));
   await ad.click('[data-f="tous"]');
+  // suivi des encaissements : essai gratuit, payé ce mois, tarif, repères du 5 et du 10
+  assert.ok((await ad.textContent(`#ad-list li:has-text("Kiosque Médina") [data-pay]`)).includes("Essai gratuit"));
+  await ad.click(`#ad-list li:has-text("Kiosque Médina") [data-act="paid"]`); await ad.waitForTimeout(400);
+  assert.strictEqual(await ad.textContent(`#ad-list li:has-text("Kiosque Médina") [data-pay]`), "Payé");
+  await ad.fill(`#ad-list li:has-text("Kiosque Médina") input[data-tarif]`, "2500"); await ad.press(`#ad-list li:has-text("Kiosque Médina") input[data-tarif]`, "Tab"); await ad.waitForTimeout(400);
+  const repères = await ad.evaluate(() => { const old = { created: { toDate: () => new Date(2026, 0, 1) } };
+    return [payState(old, "2026-11-03")[0], payState(old, "2026-11-06")[0], payState(old, "2026-11-12")[0], payState({ ...old, payeMois: "2026-11" }, "2026-11-12")[0]]; });
+  assert.deepStrictEqual(repères, ["À encaisser", "À relancer", "À suspendre ?", "Payé"]);
+  step("admin : encaissement noté (payé ce mois, tarif), repères à relancer le 5 et à suspendre le 10, sans blocage automatique");
   step("admin : 2 inscrits, 1 actif, 0 inactif, 5 erreurs (plafond par visite) ; recherche, filtres, WhatsApp");
   // une erreur effacée
   await ad.click("#tab-e");
